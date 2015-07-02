@@ -30,8 +30,7 @@ then
   cd ${SRC}.. &&
   #echo compile: Entering directory \`${PWD}/\' &&
   echo compile: Running ${TESTCMD} &&
-  ${TESTCMD};
-  echo exit value: $?
+  ${TESTCMD} || exit 1
 
 elif [ "${MODE}" = "FAST-DEBUG" ]
 then
@@ -42,8 +41,7 @@ then
   cd ${SRC}.. &&
   #echo compile: Entering directory \`${PWD}/\' &&
   echo compile: Running ${TESTCMD} &&
-  ${TESTCMD};
-  echo exit value: $?
+  ${TESTCMD} || exit 1
 
 elif [ "${MODE}" = "FAST" ]
 then
@@ -54,8 +52,7 @@ then
   cd ${SRC}.. &&
   #echo compile: Entering directory \`${PWD}/\' &&
   echo compile: Running ${TESTCMD} &&
-  ${TESTCMD};
-  echo exit value: $?
+  ${TESTCMD} || exit 1
 
 elif [ "${MODE}" = "VALGRIND-DEBUG" ]
 then
@@ -78,7 +75,7 @@ then
   cd ${SRC}.. &&
   #echo compile: Entering directory \`${PWD}/\' &&
   echo compile: Running ${TESTCMD} &&
-  ${TESTCMD};
+  ${TESTCMD} || exit 1
 
 elif [ "${MODE}" = "PROFILE" ]
 then
@@ -145,7 +142,6 @@ else
   cd ${SRC}.. &&
   #echo compile: Entering directory \`${PWD}/\' &&
   echo compile: Running ${TESTCMD} &&
-  time ${TESTCMD} &&
-  echo exit value: $?
+  time ${TESTCMD} || exit 1
 
 fi
