@@ -51,7 +51,7 @@ begin
         count: number, // number of troups to move
       }
 
+   // If there are insufficient turn files for the last turn, then the
+   // server does nothing.
 
-
-   *)
 end.
