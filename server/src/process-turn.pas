@@ -1,7 +1,10 @@
 {$MODE OBJFPC} { -*- delphi -*- }
 {$INCLUDE settings.inc}
-program peril;
-begin
+program processturn;
+uses
+   sysutils,
+   world;
+
    // Command line argument: directory of last turn, directory of next turn
 
    // The last turn directory should contain these files:
@@ -54,4 +57,32 @@ begin
    // If there are insufficient turn files for the last turn, then the
    // server does nothing.
 
+   procedure ProcessTurn(const LastTurnDir, NextTurnDir: AnsiString);
+   var
+      World: TPerilWorld;
+   begin
+      if (not DirectoryExists(LastTurnDir)) then
+         raise Exception.Create('first argument is not a directory that exists');
+      if (not DirectoryExists(NextTurnDir)) then
+         raise Exception.Create('second argument is not a directory that exists');
+      World := TPerilWorld.Create(LastTurnDir + '/server.json');
+      try
+
+      finally
+         World.Free();
+      end;
+   end;
+
+begin
+   try
+      if (ParamCount() <> 2) then
+         raise Exception.Create('arguments must be <last-turn-directory> <next-turn-directory>');
+      ProcessTurn(ParamStr(1), ParamStr(2));
+   except
+      on E: Exception do
+      begin
+         Writeln(E.Message);
+         ExitCode := 1;
+      end;
+   end;
 end.
