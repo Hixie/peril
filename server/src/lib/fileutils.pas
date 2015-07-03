@@ -17,6 +17,8 @@ type
 function ReadFile(const FileName: AnsiString): TFileData; // This is efficient
 function ReadTextFile(const FileName: AnsiString): UTF8String; // This is not
 
+procedure WriteTextFile(const FileName: AnsiString; const Data: UTF8String);
+
 function IsEmptyDirectory(const Path: AnsiString): Boolean;
 
 implementation
@@ -62,6 +64,16 @@ begin
    SetLength(Result, Source.Length);
    Move(Source.Start^, Result[1], Source.Length); // $R-
    Source.Destroy();
+end;
+
+procedure WriteTextFile(const FileName: AnsiString; const Data: UTF8String);
+var
+   F: Text;
+begin
+   Assign(F, FileName);
+   Rewrite(F);
+   Writeln(F, Data);
+   Close(F);
 end;
 
 function IsEmptyDirectory(const Path: AnsiString): Boolean;

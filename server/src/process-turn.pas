@@ -65,7 +65,7 @@ uses
          raise Exception.Create('first argument is not a directory that exists');
       if (not DirectoryExists(NextTurnDir)) then
          raise Exception.Create('second argument is not a directory that exists');
-      World := TPerilWorld.Create(LastTurnDir + '/server.json');
+      World := TPerilWorld.Create(LastTurnDir + '/server.json')`;
       try
 
       finally

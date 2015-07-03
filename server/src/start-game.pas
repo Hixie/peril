@@ -30,19 +30,22 @@ uses
         name: 'string...',
       }
 
-   procedure StartGame(const ServerFile, FirstTurnDir: AnsiString; PlayerCount: Integer);
+   procedure StartGame(const ServerFile, PlayerFile, FirstTurnDir: AnsiString);
    var
       World: TPerilWorld;
    begin
       if (not DirectoryExists(FirstTurnDir)) then
-         raise Exception.Create('first argument is not a directory that exists');
-      if (PlayerCount < 2) then
-         raise Exception.Create('insufficent number of players specified');
-      World := TPerilWorld.Create(ServerFile);
+         raise Exception.Create('third argument is not a directory that exists');
+      World := TPerilWorld.Create();
       try
-         if (PlayerCount > World.ProvinceCount) then
+         World.AddData(ServerFile, [pdfProvinces]);
+         World.AddData(PlayerFile, [pdfPlayers]);
+         if (World.PlayerCount < 2) then
+            raise Exception.Create('insufficent number of players specified');
+         if (World.PlayerCount > World.ProvinceCount) then
             raise Exception.Create('too many players specified');
-
+         World.DistributePlayers();
+         World.SaveData(FirstTurnDir);
       finally
          World.Free();
       end;
@@ -50,10 +53,11 @@ uses
 
 
 begin
+   Randomize();
    try
       if (ParamCount() <> 3) then
-         raise Exception.Create('arguments must be <world-file> <first-turn-directory> <number of players>');
-      StartGame(ParamStr(1), ParamStr(2), StrToInt(ParamStr(3)));
+         raise Exception.Create('arguments must be <world-file> <player-file> <first-turn-directory>');
+      StartGame(ParamStr(1), ParamStr(2), ParamStr(3));
    except
       on E: Exception do
       begin

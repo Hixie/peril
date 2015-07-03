@@ -126,6 +126,8 @@ type
    TJSONString = class(TJSON)
     protected
       FValue: UTF8String;
+    public
+      class function Escape(const Input: UTF8String): UTF8String; static;
    end;
    operator := (const Value: TJSON): UTF8String;
    operator = (const Op1: TJSON; const Op2: UTF8String): Boolean;
@@ -334,6 +336,12 @@ end;
 operator = (const Op1: TJSON; const Op2: Boolean): Boolean;
 begin
    Result := Assigned(Op1) and (Op1 is TJSONBoolean) and ((Op1 as TJSONBoolean).FValue = Op2);
+end;
+
+class function TJSONString.Escape(const Input: UTF8String): UTF8String; static;
+begin
+   // XXX not implemented
+   Result := Input;
 end;
 
 function ParseJSON(const Input: UTF8String): TJSON;
