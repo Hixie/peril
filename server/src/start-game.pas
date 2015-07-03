@@ -3,7 +3,8 @@
 program startgame;
 uses
    sysutils,
-   world;
+   world,
+   exceptions;
 
    // Command line argument: world file, players file, directory of first turn
 
@@ -38,8 +39,8 @@ uses
          raise Exception.Create('third argument is not a directory that exists');
       World := TPerilWorld.Create();
       try
-         World.AddData(ServerFile, [pdfProvinces]);
-         World.AddData(PlayerFile, [pdfPlayers]);
+         World.LoadData(ServerFile, [pdfProvinces]);
+         World.LoadData(PlayerFile, [pdfPlayers]);
          if (World.PlayerCount < 2) then
             raise Exception.Create('insufficent number of players specified');
          if (World.PlayerCount > World.ProvinceCount) then
@@ -51,7 +52,6 @@ uses
       end;
    end;
 
-
 begin
    Randomize();
    try
@@ -61,7 +61,11 @@ begin
    except
       on E: Exception do
       begin
-         Writeln(E.Message);
+         {$IFDEF DEBUG}
+            ReportCurrentException();
+         {$ELSE}
+            Writeln('start-game: ', E.Message);
+         {$ENDIF}
          ExitCode := 1;
       end;
    end;

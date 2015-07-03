@@ -8,12 +8,12 @@ type
    TPlayer = class
     protected
      FName: UTF8String;
-     FIndex: Cardinal;
+     FID: Cardinal;
     public
      constructor Create(const Name: UTF8String);
      procedure SetID(const NewID: Cardinal);
      property Name: UTF8String read FName;
-     property ID: Cardinal read FIndex;
+     property ID: Cardinal read FID;
    end;
 
 implementation
@@ -25,7 +25,7 @@ end;
 
 procedure TPlayer.SetID(const NewID: Cardinal);
 begin
-   FIndex := NewID;
+   FID := NewID;
 end;
 
 end.

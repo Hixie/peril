@@ -18,11 +18,11 @@ type
      procedure AddProvince(const Province: TProvince);
      function CountPlayers(): Cardinal;
      procedure AddPlayer(const Player: TPlayer);
-     function Serialise(): UTF8String; // outputs JSON of the world
+     function Serialise(const Player: TPlayer = nil): UTF8String; // outputs JSON of the world
     public
      constructor Create();
      destructor Destroy(); override;
-     procedure AddData(const FileName: AnsiString; const Features: TPerilDataFeaturesSet);
+     procedure LoadData(const FileName: AnsiString; const Features: TPerilDataFeaturesSet);
      procedure DistributePlayers();
      procedure SaveData(const Directory: AnsiString);
      property PlayerCount: Cardinal read CountPlayers;
@@ -43,13 +43,13 @@ var
    Province: TProvince;
    Player: TPlayer;
 begin
-   for Province in FProvinces do
+   for Province in FProvinces do // $R-
       Province.Free();
-   for Player in FPlayers do
+   for Player in FPlayers do // $R-
       Player.Free();
 end;
 
-procedure TPerilWorld.AddData(const FileName: AnsiString; const Features: TPerilDataFeaturesSet);
+procedure TPerilWorld.LoadData(const FileName: AnsiString; const Features: TPerilDataFeaturesSet);
 var
    ParsedData, ProvinceData, NeighbourData, PlayerData: TJSON;
    Province: TProvince;
@@ -91,9 +91,9 @@ begin
                AddPlayer(TPlayer.Create(PlayerData['name']));
       end;
    except
-      for Province in FProvinces do
+      for Province in FProvinces do // $R-
          Province.Free();
-      for Player in FPlayers do
+      for Player in FPlayers do // $R-
          Player.Free();
       raise;
    end;
@@ -107,7 +107,6 @@ begin
    // XXX make this more efficient - e.g. create a wrapper around dynamic arrays that doubles in size whenever it needs to be grown
    SetLength(FProvinces, Length(FProvinces)+1);
    FProvinces[Length(FProvinces)-1] := Province;
-   Province.SetID(Length(FProvinces)-1); // $R-
 end;
 
 procedure TPerilWorld.AddPlayer(const Player: TPlayer);
@@ -131,33 +130,54 @@ begin
       FProvinces[Index].AssignInitialPlayer(FPlayers[Index]);
    // reshuffle the array so people can't figure out where people are
    FisherYatesShuffle(FProvinces[0], Length(FProvinces), SizeOf(TProvince)); // $R-
-   for Index := 0 to Length(FProvinces)-1 do // $R-
-      FProvinces[Index].SetID(Index);
 end;
 
-function TPerilWorld.Serialise(): UTF8String;
+function TPerilWorld.Serialise(const Player: TPlayer = nil): UTF8String;
 var
    Province, Neighbour: TProvince;
-   Player: TPlayer;
+   CurrentPlayer: TPlayer;
    First, NestedFirst: Boolean;
+   Index: Cardinal;
 begin
-   // XXX this is very inefficient
-   Result := '{"provinces":[';
-   First := True;
-   for Province in FProvinces do
+   Index := 0;
+   for Province in FProvinces do // $R-
    begin
+      if (Assigned(Player) and not Province.CanBeSeenBy(Player)) then
+      begin
+         FProvinces[Index].UnsetID();
+      end
+      else
+      begin
+         FProvinces[Index].SetID(Index);
+         Inc(Index);
+      end;
+   end;
+   // XXX this is very inefficient
+   Result := '{';
+   if (Assigned(Player)) then
+      Result := Result + '"player":' + IntToStr(Player.ID) + ',';
+   Result := Result + '"provinces":[';
+   First := True;
+   for Province in FProvinces do // $R-
+   begin
+      if (Assigned(Player) and not Province.CanBeSeenBy(Player)) then
+         continue;
       if (not First) then
          Result := Result + ',';
-      Result := Result + '{"name":"' + TJSONString.Escape(Province.Name) + '","neighbours":[';
-      NestedFirst := True;
-      for Neighbour in Province.Neighbours do
+      Result := Result + '{"name":"' + TJSONString.Escape(Province.Name) + '"';
+      if (not Assigned(Player) or Province.NeighboursCanBeSeenBy(Player)) then
       begin
-         if (not NestedFirst) then
-            Result := Result + ',';
-         Result := Result + IntToStr(Neighbour.ID);
-         NestedFirst := False;
+         Result := Result + ',"neighbours":[';
+         NestedFirst := True;
+         for Neighbour in Province.Neighbours do // $R-
+         begin
+            if (not NestedFirst) then
+               Result := Result + ',';
+            Result := Result + IntToStr(Neighbour.ID);
+            NestedFirst := False;
+         end;
+         Result := Result + ']';
       end;
-      Result := Result + ']';
       if (Assigned(Province.Owner)) then
          Result := Result + ',"owner":' + IntToStr(Province.Owner.ID);
       Result := Result + '}';
@@ -165,19 +185,23 @@ begin
    end;
    Result := Result + '],"players":[';
    First := True;
-   for Player in FPlayers do
+   for CurrentPlayer in FPlayers do // $R-
    begin
       if (not First) then
          Result := Result + ',';
-      Result := Result + '{"name":"' + TJSONString.Escape(Player.Name) + '"}';
+      Result := Result + '{"name":"' + TJSONString.Escape(CurrentPlayer.Name) + '"}';
       First := False;
    end;
    Result := Result + ']}';
 end;
 
 procedure TPerilWorld.SaveData(const Directory: AnsiString);
+var
+   Player: TPlayer;
 begin
    WriteTextFile(Directory + '/server.json', Serialise());
+   for Player in FPlayers do // $R-
+      WriteTextFile(Directory + '/player' + IntToStr(Player.ID) + '.json', Serialise(Player));
 end;
 
 function TPerilWorld.CountProvinces(): Cardinal;

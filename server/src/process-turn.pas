@@ -17,6 +17,7 @@ uses
    // The state-for-playerI.json JSON files have the following format:
 
       {
+        player: I,
         provinces: [ province, province, province, ... ],
         players: [ player, player, player, ... ],
       }
@@ -65,9 +66,10 @@ uses
          raise Exception.Create('first argument is not a directory that exists');
       if (not DirectoryExists(NextTurnDir)) then
          raise Exception.Create('second argument is not a directory that exists');
-      World := TPerilWorld.Create(LastTurnDir + '/server.json')`;
+      World := TPerilWorld.Create();
       try
-
+         World.LoadData(LastTurnDir + '/server.json', [pdfProvinces, pdfPlayers]);
+         World.SaveData(NextTurnDir);
       finally
          World.Free();
       end;
