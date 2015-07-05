@@ -59,7 +59,7 @@ var
    Source: TFileData;
 begin
    Source := ReadFile(FileName);
-   if (Source.Length > High(Length(Result))) then
+   if (Source.Length > High(Integer)) then
       raise Exception.Create('text file too big');
    SetLength(Result, Source.Length);
    Move(Source.Start^, Result[1], Source.Length); // $R-

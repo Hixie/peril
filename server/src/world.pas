@@ -5,15 +5,17 @@ unit world;
 interface
 
 uses
-   provinces, players;
+   plasticarrays, genericutils, provinces, players;
 
 type
    TPerilDataFeatures = (pdfProvinces, pdfPlayers);
    TPerilDataFeaturesSet = set of TPerilDataFeatures;
    TPerilWorld = class
+    protected type
+     TPlayerArray = specialize PlasticArray <TPlayer, TObjectUtils>;
     protected
-     FProvinces: array of TProvince;
-     FPlayers: array of TPlayer;
+     FProvinces: TProvinceHashTable;
+     FPlayers: TPlayerArray;
      function CountProvinces(): Cardinal;
      procedure AddProvince(const Province: TProvince);
      function CountPlayers(): Cardinal;
@@ -23,7 +25,10 @@ type
      constructor Create();
      destructor Destroy(); override;
      procedure LoadData(const FileName: AnsiString; const Features: TPerilDataFeaturesSet);
+     procedure LoadInstructions(const Directory: AnsiString);
      procedure DistributePlayers();
+     procedure RandomiseIDs();
+     procedure ExecuteInstructions();
      procedure SaveData(const Directory: AnsiString);
      property PlayerCount: Cardinal read CountPlayers;
      property ProvinceCount: Cardinal read CountProvinces;
@@ -32,10 +37,11 @@ type
 implementation
 
 uses
-   sysutils, fileutils, arrayutils, math, json;
+   sysutils, fileutils, arrayutils, exceptions, json, stringrecorder;
 
 constructor TPerilWorld.Create();
 begin
+   FProvinces := TProvinceHashTable.Create();
 end;
 
 destructor TPerilWorld.Destroy();
@@ -43,10 +49,15 @@ var
    Province: TProvince;
    Player: TPlayer;
 begin
-   for Province in FProvinces do // $R-
-      Province.Free();
-   for Player in FPlayers do // $R-
-      Player.Free();
+   try
+      for Province in FProvinces.Values do // $R-
+         Province.Free();
+      FProvinces.Free();
+      for Player in FPlayers do // $R-
+         Player.Free();
+   except
+      ReportCurrentException();
+   end;
 end;
 
 procedure TPerilWorld.LoadData(const FileName: AnsiString; const Features: TPerilDataFeaturesSet);
@@ -54,30 +65,51 @@ var
    ParsedData, ProvinceData, NeighbourData, PlayerData: TJSON;
    Province: TProvince;
    Player: TPlayer;
-   Number: Double;
-   ProvinceIndex, NeighbourIndex: Integer;
+   ProvinceIndex, NeighbourIndex: Cardinal;
+   ID: Cardinal;
+
+   function JSONToCardinal(const JSON: TJSON): Cardinal;
+   var
+      Number: Double;
+   begin
+      Number := JSON;
+      if (Frac(Number) <> 0.0) then
+         raise Exception.Create('syntax error: non-integer index');
+      if ((Number < 0.0) or (Number > High(Cardinal))) then
+         raise Exception.Create('syntax error: out of range index');
+      Result := Trunc(Number); // $R-
+   end;
+
 begin
    ParsedData := ParseJSON(ReadTextFile(FileName));
    try try
       if (pdfProvinces in Features) then
       begin
-         Assert(Length(FProvinces) = 0);
+         Assert(FProvinces.Count = 0);
          if (Assigned(ParsedData['provinces'])) then
          begin
             for ProvinceData in ParsedData['provinces'] do
-               AddProvince(TProvince.Create(ProvinceData['name']));
+            begin
+               if (Assigned(ProvinceData['id'])) then
+                  ID := JSONToCardinal(ProvinceData['id'])
+               else
+                  ID := FProvinces.Count;
+               AddProvince(TProvince.Create(ProvinceData['name'], ID));
+            end;
             ProvinceIndex := 0;
             for ProvinceData in ParsedData['provinces'] do
             begin
+               if (Assigned(ProvinceData['id'])) then
+                  ID := JSONToCardinal(ProvinceData['id'])
+               else
+                  ID := ProvinceIndex;
+               Assert(FProvinces.Has(ID));
                for NeighbourData in ProvinceData['neighbours'] do
                begin
-                  Number := NeighbourData;
-                  if (Frac(Number) <> 0.0) then
-                     raise Exception.Create('syntax error: non-integer neighbour index');
-                  NeighbourIndex := Floor(Number);
-                  if ((NeighbourIndex < 0) or (NeighbourIndex >= Length(FProvinces))) then
-                     raise Exception.Create('syntax error: out of range neighbour index');
-                  FProvinces[ProvinceIndex].AddNeighbour(FProvinces[NeighbourIndex]);
+                  NeighbourIndex := JSONToCardinal(NeighbourData);
+                  if (not FProvinces.Has(NeighbourIndex)) then
+                     raise Exception.Create('syntax error: neighbour index unknown');
+                  FProvinces[ID].AddNeighbour(FProvinces[NeighbourIndex]);
                end;
                Inc(ProvinceIndex);
             end;
@@ -85,16 +117,20 @@ begin
       end;
       if (pdfPlayers in Features) then
       begin
-         Assert(Length(FPlayers) = 0);
+         Assert(FPlayers.Length = 0);
          if (Assigned(ParsedData['players'])) then
             for PlayerData in ParsedData['players'] do
                AddPlayer(TPlayer.Create(PlayerData['name']));
       end;
    except
-      for Province in FProvinces do // $R-
-         Province.Free();
-      for Player in FPlayers do // $R-
-         Player.Free();
+      try
+         for Province in FProvinces.Values do // $R-
+            Province.Free();
+         for Player in FPlayers do // $R-
+            Player.Free();
+      except
+         ReportCurrentException();
+      end;
       raise;
    end;
    finally
@@ -102,97 +138,127 @@ begin
    end;
 end;
 
+procedure TPerilWorld.LoadInstructions(const Directory: AnsiString);
+var
+   Player: TPlayer;
+   ParsedData, Action: TJSON;
+begin
+   for Player in FPlayers do // $R-
+   begin
+      ParsedData := ParseJSON(ReadTextFile(Directory + '/actions-for-player' + IntToStr(Player.ID) + '.json'));
+      try
+         if (Assigned(ParsedData['actions'])) then
+         begin
+         //   for (
+         end;
+      finally
+         ParsedData.Free();
+      end;
+   end;
+end;
+
 procedure TPerilWorld.AddProvince(const Province: TProvince);
 begin
-   // XXX make this more efficient - e.g. create a wrapper around dynamic arrays that doubles in size whenever it needs to be grown
-   SetLength(FProvinces, Length(FProvinces)+1);
-   FProvinces[Length(FProvinces)-1] := Province;
+   FProvinces[Province.ID] := Province;
 end;
 
 procedure TPerilWorld.AddPlayer(const Player: TPlayer);
 begin
-   // XXX make this more efficient - e.g. create a wrapper around dynamic arrays that doubles in size whenever it needs to be grown
-   SetLength(FPlayers, Length(FPlayers)+1);
-   FPlayers[Length(FPlayers)-1] := Player;
-   Player.SetID(Length(FPlayers)-1); // $R-
+   Player.SetID(FPlayers.Length);
+   FPlayers.Push(Player);
 end;
 
 procedure TPerilWorld.DistributePlayers();
 var
    Index: Cardinal;
+   ProvinceList: array of TProvince;
+   Province: TProvince;
 begin
-   Assert(Length(FProvinces) > 0);
-   Assert(Length(FPlayers) > 0);
-   Assert(Length(FPlayers) < Length(FProvinces));
+   Assert(FProvinces.Count > 0);
+   Assert(FPlayers.Length > 0);
+   Assert(FPlayers.Length < FProvinces.Count);
+   SetLength(ProvinceList, FProvinces.Count);
+   Index := 0;
+   for Province in FProvinces.Values do
+   begin
+      ProvinceList[Index] := Province;
+      Inc(Index);
+   end;
    // randomly assign players to provinces
-   FisherYatesShuffle(FProvinces[0], Length(FProvinces), SizeOf(TProvince)); // $R-
-   for Index := 0 to Length(FPlayers)-1 do // $R-
-      FProvinces[Index].AssignInitialPlayer(FPlayers[Index]);
-   // reshuffle the array so people can't figure out where people are
-   FisherYatesShuffle(FProvinces[0], Length(FProvinces), SizeOf(TProvince)); // $R-
+   FisherYatesShuffle(ProvinceList[0], Length(ProvinceList), SizeOf(TProvince)); // $R-
+   for Index := 0 to FPlayers.Length-1 do // $R-
+      ProvinceList[Index].AssignInitialPlayer(FPlayers[Index]);
+end;
+
+procedure TPerilWorld.RandomiseIDs();
+var
+   Province: TProvince;
+   NewTable: TProvinceHashTable;
+begin
+   NewTable := TProvinceHashTable.Create();
+   for Province in FProvinces.Values do // $R-
+   begin
+      Province.SetID(NewTable.GetNewID());
+      NewTable.Add(Province.ID, Province);
+   end;
+   FProvinces.Free();
+   FProvinces := NewTable;
+end;
+
+procedure TPerilWorld.ExecuteInstructions();
+begin
+   XXX;
 end;
 
 function TPerilWorld.Serialise(const Player: TPlayer = nil): UTF8String;
 var
    Province, Neighbour: TProvince;
    CurrentPlayer: TPlayer;
-   First, NestedFirst: Boolean;
-   Index: Cardinal;
+   Neighbours: TProvince.TReadOnlyArray;
+   Writer: TJSONWriter;
+   Index, SubIndex: Cardinal;
+   Recorder: TStringRecorderForStrings;
 begin
-   Index := 0;
-   for Province in FProvinces do // $R-
-   begin
-      if (Assigned(Player) and not Province.CanBeSeenBy(Player)) then
-      begin
-         FProvinces[Index].UnsetID();
-      end
-      else
-      begin
-         FProvinces[Index].SetID(Index);
-         Inc(Index);
-      end;
-   end;
    // XXX this is very inefficient
-   Result := '{';
+   Writer := TJSONWriter.Create();
    if (Assigned(Player)) then
-      Result := Result + '"player":' + IntToStr(Player.ID) + ',';
-   Result := Result + '"provinces":[';
-   First := True;
-   for Province in FProvinces do // $R-
+      Writer['player'].SetValue(Player.ID);
+   Index := 0;
+   for Province in FProvinces.Values do // $R-
    begin
       if (Assigned(Player) and not Province.CanBeSeenBy(Player)) then
          continue;
-      if (not First) then
-         Result := Result + ',';
-      Result := Result + '{"name":"' + TJSONString.Escape(Province.Name) + '"';
+      Writer['provinces'][Index]['id'].SetValue(IntToStr(Province.ID));
+      Writer['provinces'][Index]['name'].SetValue(Province.Name);
+      if (Assigned(Province.Owner)) then
+         Writer['provinces'][Index]['owner'].SetValue(Province.Owner.ID);
       if (not Assigned(Player) or Province.NeighboursCanBeSeenBy(Player)) then
       begin
-         Result := Result + ',"neighbours":[';
-         NestedFirst := True;
-         for Neighbour in Province.Neighbours do // $R-
-         begin
-            if (not NestedFirst) then
-               Result := Result + ',';
-            Result := Result + IntToStr(Neighbour.ID);
-            NestedFirst := False;
+         Neighbours := Province.GetNeighbours();
+         try
+            SubIndex := 0;
+            for Neighbour in Neighbours do // $R-
+            begin
+               Writer['provinces'][Index]['neighbours'][SubIndex].SetValue(Neighbour.ID);
+               Inc(SubIndex);
+            end;
+         finally
+            Neighbours.Free();
          end;
-         Result := Result + ']';
       end;
-      if (Assigned(Province.Owner)) then
-         Result := Result + ',"owner":' + IntToStr(Province.Owner.ID);
-      Result := Result + '}';
-      First := False;
+      Inc(Index);
    end;
-   Result := Result + '],"players":[';
-   First := True;
+   Index := 0;
    for CurrentPlayer in FPlayers do // $R-
    begin
-      if (not First) then
-         Result := Result + ',';
-      Result := Result + '{"name":"' + TJSONString.Escape(CurrentPlayer.Name) + '"}';
-      First := False;
+      Writer['players'][Index]['name'].SetValue(CurrentPlayer.Name);
+      Inc(Index);
    end;
-   Result := Result + ']}';
+   Recorder := TStringRecorderForStrings.Create();
+   Writer.Serialise(Recorder);
+   Result := Recorder.Value;
+   Recorder.Free();
+   Writer.Free();
 end;
 
 procedure TPerilWorld.SaveData(const Directory: AnsiString);
@@ -201,17 +267,17 @@ var
 begin
    WriteTextFile(Directory + '/server.json', Serialise());
    for Player in FPlayers do // $R-
-      WriteTextFile(Directory + '/player' + IntToStr(Player.ID) + '.json', Serialise(Player));
+      WriteTextFile(Directory + '/state-for-player' + IntToStr(Player.ID) + '.json', Serialise(Player));
 end;
 
 function TPerilWorld.CountProvinces(): Cardinal;
 begin
-   Result := Length(FProvinces); // $R-
+   Result := FProvinces.Count;
 end;
 
 function TPerilWorld.CountPlayers(): Cardinal;
 begin
-   Result := Length(FPlayers); // $R-
+   Result := FPlayers.Length;
 end;
 
 end.

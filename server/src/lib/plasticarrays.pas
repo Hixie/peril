@@ -4,6 +4,9 @@ unit plasticarrays;
 
 interface
 
+const
+   kGrowthFactor: Double = 1.5;
+
 type
    generic PlasticArray <T, Utils> = record
     private
@@ -19,7 +22,9 @@ type
       procedure SetFilledLength(const NewFilledLength: Cardinal); inline;
     public
       // these calls are all O(1) except as noted
-      procedure Init(); // call this if the PlasticArray is not pre-zeroed (i.e. class member is fine; but if you use this in a procedure, call Init() first)
+      procedure Init(LikelyLength: Cardinal = 0); // call this if the PlasticArray is not pre-zeroed
+        // (i.e. using this as a class member is fine; but if you use this in a procedure, call Init() first)
+        // this is because the FFilledLength member is not managed by the compiler
       procedure Push(const Item: T); inline; // expensive if it requires the length to be increased
       function Pop(): T; inline;
       procedure Empty(); inline;
@@ -39,6 +44,7 @@ type
       TCompareFunc = function (const A, B: T): Integer is nested;
       procedure Sort(const CompareFunc: TCompareFunc);
       procedure Sort();
+      procedure Shuffle();
     strict private
       // these aren't nested procs just because generics can't have nested procs
       procedure QuickSort(L, R: Integer; const CompareFunc: TCompareFunc);
@@ -55,14 +61,39 @@ type
           function MoveNext(): Boolean;
           property Current: T read GetCurrent;
        end;
-      function GetEnumerator(): TEnumerator;
+      function GetEnumerator(): TEnumerator; inline;
+    public
+     type
+      TReadOnlyView = class
+       private
+        type
+         PArray = ^PlasticArray;
+        var
+          FArray: PArray;
+         constructor Create(AArray: PArray);
+         function GetFilledLength(): Cardinal; inline;
+         function GetItem(Index: Cardinal): T; inline;
+         function GetLast(): T; inline;
+       public
+         // these calls are all O(1)
+         property Length: Cardinal read GetFilledLength;
+         property Items[Index: Cardinal]: T read GetItem; default;
+         property Last: T read GetLast;
+         function GetEnumerator(): TEnumerator; inline;
+      end;
+      function GetReadOnlyView(): TReadOnlyView;
    end;
 
 implementation
 
-procedure PlasticArray.Init();
+uses
+   arrayutils;
+
+procedure PlasticArray.Init(LikelyLength: Cardinal = 0);
 begin
    FFilledLength := 0;
+   if (LikelyLength > 0) then
+      SetLength(FArray, LikelyLength);
 end;
 
 function PlasticArray.GetItem(const Index: Cardinal): T;
@@ -84,10 +115,20 @@ begin
 end;
 
 procedure PlasticArray.SetFilledLength(const NewFilledLength: Cardinal);
+var
+   NewLength: Int64;
 begin
+   Assert(NewFilledLength <= High(Integer));
    FFilledLength := NewFilledLength;
    if (FFilledLength > System.Length(FArray)) then
-      SetLength(FArray, FFilledLength);
+   begin
+      NewLength := Trunc(FFilledLength * kGrowthFactor) + 1;
+      if (NewLength > High(Integer)) then
+         NewLength := High(Integer);
+      if (NewLength < NewFilledLength) then
+         NewLength := NewFilledLength;
+      SetLength(FArray, NewLength);
+   end;
 end;
 
 procedure PlasticArray.Squeeze();
@@ -261,6 +302,12 @@ begin
       QuickSort(Low(FArray), FFilledLength-1); // $R-
 end;
 
+procedure PlasticArray.Shuffle();
+begin
+   if (FFilledLength > 1) then
+      FisherYatesShuffle(FArray[0], FFilledLength, SizeOf(T)); // $R-
+end;
+
 constructor PlasticArray.TEnumerator.Create(const Target: PPlasticArray);
 begin
    inherited Create();
@@ -283,6 +330,37 @@ end;
 function PlasticArray.GetEnumerator(): TEnumerator;
 begin
    Result := TEnumerator.Create(@Self);
+end;
+
+constructor PlasticArray.TReadOnlyView.Create(AArray: PArray);
+begin
+   Assert(Assigned(AArray));
+   FArray := AArray;
+end;
+
+function PlasticArray.TReadOnlyView.GetFilledLength(): Cardinal;
+begin
+   Result := FArray^.Length;
+end;
+
+function PlasticArray.TReadOnlyView.GetItem(Index: Cardinal): T;
+begin
+   Result := FArray^[Index];
+end;
+
+function PlasticArray.TReadOnlyView.GetLast(): T;
+begin
+   Result := FArray^.GetLast();
+end;
+
+function PlasticArray.TReadOnlyView.GetEnumerator(): TEnumerator;
+begin
+   Result := FArray^.GetEnumerator();
+end;
+
+function PlasticArray.GetReadOnlyView(): PlasticArray.TReadOnlyView;
+begin
+   Result := TReadOnlyView.Create(@Self);
 end;
 
 end.

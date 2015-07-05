@@ -5,61 +5,50 @@ unit provinces;
 interface
 
 uses
-   players;
+   plasticarrays, genericutils, cardinalhashtable, players;
 
 type
    TProvince = class
+    public type
+     TArray = specialize PlasticArray <TProvince, TObjectUtils>;
+     TReadOnlyArray = TArray.TReadOnlyView;
     protected
      FName: UTF8String;
-     FNeighbours: array of TProvince;
-     FID: Integer;
+     FNeighbours: TArray;
+     FID: Cardinal;
      FOwner: TPlayer;
-     function GetID(): Cardinal;
-    public type
-     TProvinceArray = array of TProvince;
     public
-     constructor Create(const Name: UTF8String);
+     constructor Create(const Name: UTF8String; const ID: Cardinal);
      procedure AddNeighbour(const Neighbour: TProvince);
-     procedure UnsetID();
      procedure SetID(const NewID: Cardinal);
      procedure AssignInitialPlayer(const Player: TPlayer);
      function CanBeSeenBy(const Player: TPlayer): Boolean;
      function NeighboursCanBeSeenBy(const Player: TPlayer): Boolean;
      property Name: UTF8String read FName;
-     property ID: Cardinal read GetID;
+     property ID: Cardinal read FID;
      property Owner: TPlayer read FOwner;
-     property Neighbours: TProvinceArray read FNeighbours; // XXX make this a read-only view of the array
+     function GetNeighbours(): TReadOnlyArray;
    end;
+
+type
+   TProvinceHashTable = specialize TCardinalHashTable <TProvince>;
 
 implementation
 
-constructor TProvince.Create(const Name: UTF8String);
+constructor TProvince.Create(const Name: UTF8String; const ID: Cardinal);
 begin
    FName := Name;
+   FID := ID;
 end;
 
 procedure TProvince.AddNeighbour(const Neighbour: TProvince);
 begin
-   // XXX make this more efficient - e.g. create a wrapper around dynamic arrays that doubles in size whenever it needs to be grown
-   SetLength(FNeighbours, Length(FNeighbours)+1);
-   FNeighbours[Length(FNeighbours)-1] := Neighbour;
-end;
-
-procedure TProvince.UnsetID();
-begin
-   FID := -1;
+   FNeighbours.Push(Neighbour);
 end;
 
 procedure TProvince.SetID(const NewID: Cardinal);
 begin
-   Assert(NewID <= High(FID));
-   FID := NewID; // $R-
-end;
-
-function TProvince.GetID(): Cardinal;
-begin
-   Assert(FID >= 0);
-   Result := FID; // $R-
+   FID := NewID;
 end;
 
 procedure TProvince.AssignInitialPlayer(const Player: TPlayer);
@@ -84,6 +73,11 @@ end;
 function TProvince.NeighboursCanBeSeenBy(const Player: TPlayer): Boolean;
 begin
    Result := FOwner = Player;
+end;
+
+function TProvince.GetNeighbours(): TArray.TReadOnlyView;
+begin
+   Result := FNeighbours.GetReadOnlyView();
 end;
 
 end.

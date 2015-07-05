@@ -8,21 +8,42 @@ interface
 //{$DEFINE TESTS}
 
 uses
-   hashtable, stringutils;
+   hashtable, plasticarrays, genericutils, stringutils, stringrecorder;
 
-// This is a read-only JSON interface.
+// This unit provides two JSON APIs.
+
+// The first is for reading, and parses a UTF8String into an object
+// hierarchy. You invoke this API by calling ParseJSON(data), and you
+// get back a TJSON object which is (depending on the type of data
+// represented) assignment- compatible with UTF8String, Boolean, and
+// Double, indexable with numeric or string keys, comparable with
+// UTF8Strings, Booleans, and Doubles (if the TJSON object is the on
+// the left hand side) using the = and <> operators, and enumerable.
+// When the TJSON object represents a JSON Object, it enumerates its
+// values, and has a .Keys field that can be enumerated to enumerate
+// the keys.
+
+// The second API is for writing. Once a TJSONWriter is created, you
+// can set literal values (Boolean, Double, or UTF8String) using
+// SetValue(), you can set it to an array by indexing into it using
+// integers, and you can set it to an object by indexing into it using
+// a string. Combining these:
+//  Writer := TJSONWriter.Create();
+//  Writer['foo']['bar'][3][4].SetValue(False);
+// To serialise, you use a StringRecorder and pass it to Serialise().
 
 // The JSON specs (there's at least 3) are a bit vague about some
 // details, so I've made the following decisions for the purposes of
 // this implementation:
-//  - the only supported input encoding is UTF-8
+//  - the only supported character encoding is UTF-8
 //  - the root can be any value (this contradicts RFC4627, but matches
 //    RFC7159 and ECMA404, JSON.org is silent on this)
 //  - whitespace is allowed before or after any token (this contradicts
 //    the json.org description, but matches the RFCs, and more or less
 //    matches ECMA404)
-//  - duplicate keys are fatally invalid (this contradicts all the
-//    specs, especially the RFC)
+//  - duplicate keys are fatally invalid when reading, and cannot be
+//    set when writing (this contradicts all the specs, especially
+//    the RFC)
 //  - key order for keys in objects is lost
 //  - lone surrogate escapes are invalid (this contradicts all the specs
 //    but is required if we're parsing to UTF-8)
@@ -126,8 +147,6 @@ type
    TJSONString = class(TJSON)
     protected
       FValue: UTF8String;
-    public
-      class function Escape(const Input: UTF8String): UTF8String; static;
    end;
    operator := (const Value: TJSON): UTF8String;
    operator = (const Op1: TJSON; const Op2: UTF8String): Boolean;
@@ -140,9 +159,76 @@ type
    operator := (const Value: TJSON): Boolean;
    operator = (const Op1: TJSON; const Op2: Boolean): Boolean;
 
-// XXX should probably have the reverse = operators too
-
 function ParseJSON(const Input: UTF8String): TJSON;
+
+type
+   TJSONWriter = class
+    private
+     type
+      TJSONWriterData = class abstract
+        public
+         procedure Serialise(const Recorder: TStringRecorder); virtual; abstract;
+      end;
+      TJSONWriterBoolean = class(TJSONWriterData)
+        strict private
+         FValue: Boolean;
+        public
+         constructor Create(const Value: Boolean);
+         procedure Serialise(const Recorder: TStringRecorder); override;
+      end;
+      TJSONWriterString = class(TJSONWriterData)
+        strict private
+         FValue: String;
+        public
+         constructor Create(const Value: UTF8String);
+         procedure Serialise(const Recorder: TStringRecorder); override;
+      end;
+      TJSONWriterDouble = class(TJSONWriterData)
+        strict private
+         FValue: Double;
+        public
+         constructor Create(const Value: Double);
+         procedure Serialise(const Recorder: TStringRecorder); override;
+      end;
+      TJSONWriterArray = class(TJSONWriterData)
+        strict private type
+         TValues = specialize PlasticArray <TJSONWriter, TObjectUtils>;
+        strict private
+         FValues: TValues;
+        public
+         destructor Destroy(); override;
+         function GetItem(const Index: Cardinal): TJSONWriter;
+         procedure Serialise(const Recorder: TStringRecorder); override;
+      end;
+      TJSONWriterObject = class(TJSONWriterData)
+        strict private type
+         TEntry = record
+            Name: TJSONWriterString;
+            Data: TJSONWriter;
+         end;
+         TValues = specialize THashTable <UTF8String, TEntry, UTF8StringUtils>;
+        strict private
+         FValues: TValues;
+        public
+         constructor Create();
+         destructor Destroy(); override;
+         function GetItem(const Index: UTF8String): TJSONWriter;
+         procedure Serialise(const Recorder: TStringRecorder); override;
+      end;
+     var
+      FData: TJSONWriterData;
+      function GetItem(const Key: TJSONKey): TJSONWriter;
+    public
+      destructor Destroy(); override;
+      procedure Serialise(const Recorder: TStringRecorder);
+      procedure SetValue(const Value: Boolean);
+      procedure SetValue(const Value: Double);
+      procedure SetValue(const Value: UTF8String);
+      property Items[const Key: TJSONKey]: TJSONWriter read GetItem; default;
+   end;
+   operator := (const Value: Boolean): TJSONWriter;
+   operator := (const Value: UTF8String): TJSONWriter;
+   operator := (const Value: Double): TJSONWriter;
 
 implementation
 
@@ -161,6 +247,9 @@ begin
    Result.Mode := kmString;
    Result.StringValue := Value;
 end;
+
+
+// TJSON / ParseJSON interface
 
 function TJSONEnumerator.GetCurrent(): TJSON;
 begin
@@ -336,12 +425,6 @@ end;
 operator = (const Op1: TJSON; const Op2: Boolean): Boolean;
 begin
    Result := Assigned(Op1) and (Op1 is TJSONBoolean) and ((Op1 as TJSONBoolean).FValue = Op2);
-end;
-
-class function TJSONString.Escape(const Input: UTF8String): UTF8String; static;
-begin
-   // XXX not implemented
-   Result := Input;
 end;
 
 function ParseJSON(const Input: UTF8String): TJSON;
@@ -737,7 +820,7 @@ end;
 {$IFDEF TESTS}
 {$IFOPT C+} {$ELSE} {$FATAL Can't run tests without assertion support} {$ENDIF}
 {$RESOURCE tests/json.rc}
-procedure TestJSON();
+procedure TestJSONReader();
 var
    ParsedData: TJSON;
 
@@ -860,6 +943,236 @@ begin
 end;
 {$ENDIF}
 
+
+// TJSONWriter interface
+
+constructor TJSONWriter.TJSONWriterBoolean.Create(const Value: Boolean);
+begin
+   FValue := Value;
+end;
+
+procedure TJSONWriter.TJSONWriterBoolean.Serialise(const Recorder: TStringRecorder);
+begin
+   if (FValue) then
+      Recorder.Add('true')
+   else
+      Recorder.Add('false');
+end;
+
+constructor TJSONWriter.TJSONWriterString.Create(const Value: UTF8String);
+begin
+   FValue := Value;
+end;
+
+procedure TJSONWriter.TJSONWriterString.Serialise(const Recorder: TStringRecorder);
+var
+   Index: Cardinal;
+   HasSpecial: Boolean = False;
+   Escaped: UTF8String;
+begin
+   if (FValue = '') then
+   begin
+      Recorder.Add('""');
+      exit;
+   end;
+   for Index := 1 to Length(FValue) do // $R-
+      if (FValue[Index] in [#$00..#$1F, '"', '\']) then
+      begin
+         HasSpecial := True;
+         exit;
+      end;
+   if (not HasSpecial) then
+   begin
+      Recorder.Add('"' + FValue + '"');
+      exit;
+   end;
+   Escaped := '';
+   for Index := 1 to Length(FValue) do // $R-
+      if (FValue[Index] in [#$00..#$1F, '"', '\']) then
+      begin
+         Escaped := Escaped + '\' + IntToHex(Ord(FValue[Index]), 2);
+      end
+      else
+      begin
+         // XXX could make this more efficient by copying whole safe segments at a time
+         Escaped := Escaped + FValue[Index];
+      end;
+   Recorder.Add('"' + Escaped + '"');
+end;
+
+constructor TJSONWriter.TJSONWriterDouble.Create(const Value: Double);
+begin
+   FValue := Value;
+end;
+
+procedure TJSONWriter.TJSONWriterDouble.Serialise(const Recorder: TStringRecorder);
+begin
+   Recorder.Add(FloatToStr(FValue));
+end;
+
+destructor TJSONWriter.TJSONWriterArray.Destroy();
+var
+   Entry: TJSONWriter;
+begin
+   for Entry in FValues do
+      Entry.Free();
+end;
+
+function TJSONWriter.TJSONWriterArray.GetItem(const Index: Cardinal): TJSONWriter;
+var
+   SubIndex, OldLength: Cardinal;
+begin
+   if (Index >= FValues.Length) then
+   begin
+      OldLength := FValues.Length;
+      FValues.Length := Index+1; // $R-
+      for SubIndex := OldLength to Index do
+         FValues[SubIndex] := TJSONWriter.Create();
+   end;
+   Result := FValues[Index];
+end;
+
+procedure TJSONWriter.TJSONWriterArray.Serialise(const Recorder: TStringRecorder);
+var
+   First: Boolean = True;
+   Entry: TJSONWriter;
+begin
+   Recorder.Add('[');
+   for Entry in FValues do
+   begin
+      if (First) then
+         First := False
+      else
+         Recorder.Add(',');
+      Assert(Assigned(Entry));
+      Entry.Serialise(Recorder);
+      First := False;
+   end;
+   Recorder.Add(']');
+end;
+
+constructor TJSONWriter.TJSONWriterObject.Create();
+begin
+   FValues := TValues.Create(@UTF8StringHash32);
+end;
+
+destructor TJSONWriter.TJSONWriterObject.Destroy();
+var
+   Entry: TEntry;
+begin
+   for Entry in FValues.Values do
+   begin
+      Entry.Name.Free();
+      Entry.Data.Free();
+   end;
+   FValues.Free();
+end;
+
+function TJSONWriter.TJSONWriterObject.GetItem(const Index: UTF8String): TJSONWriter;
+var
+   NewEntry: TEntry;
+begin
+   if (not FValues.Has(Index)) then
+   begin
+      NewEntry.Name := TJSONWriterString.Create(Index);
+      NewEntry.Data := TJSONWriter.Create();
+      FValues[Index] := NewEntry;
+   end;
+   Result := FValues[Index].Data;
+end;
+
+procedure TJSONWriter.TJSONWriterObject.Serialise(const Recorder: TStringRecorder);
+var
+   First: Boolean = True;
+   Entry: TEntry;
+begin
+   Recorder.Add('{');
+   for Entry in FValues.Values do
+   begin
+      if (First) then
+         First := False
+      else
+         Recorder.Add(',');
+      Assert(Assigned(Entry.Name));
+      Entry.Name.Serialise(Recorder);
+      Recorder.Add(':');
+      Assert(Assigned(Entry.Data));
+      Entry.Data.Serialise(Recorder);
+      First := False;
+   end;
+   Recorder.Add('}');
+end;
+
+destructor TJSONWriter.Destroy();
+begin
+   if (Assigned(FData)) then
+      FData.Free();
+end;
+
+function TJSONWriter.GetItem(const Key: TJSONKey): TJSONWriter;
+begin
+   case Key.Mode of
+      kmNumeric:
+         begin
+            if (not Assigned(FData)) then
+               FData := TJSONWriterArray.Create();
+            Assert(FData is TJSONWriterArray);
+            Result := (FData as TJSONWriterArray).GetItem(Key.NumericValue);
+         end;
+      kmString:
+         begin
+            if (not Assigned(FData)) then
+               FData := TJSONWriterObject.Create();
+            Assert(FData is TJSONWriterObject);
+            Result := (FData as TJSONWriterObject).GetItem(Key.StringValue);
+         end;
+      else
+         Assert(False);
+   end;
+end;
+
+procedure TJSONWriter.SetValue(const Value: Boolean);
+begin
+   Assert(not Assigned(FData), 'Setting duplicate value');
+   FData := TJSONWriterBoolean.Create(Value);
+end;
+
+procedure TJSONWriter.SetValue(const Value: Double);
+begin
+   Assert(not Assigned(FData), 'Setting duplicate value');
+   FData := TJSONWriterDouble.Create(Value);
+end;
+
+procedure TJSONWriter.SetValue(const Value: UTF8String);
+begin
+   Assert(not Assigned(FData), 'Setting duplicate value');
+   FData := TJSONWriterString.Create(Value);
+end;
+
+procedure TJSONWriter.Serialise(const Recorder: TStringRecorder);
+begin
+   if (Assigned(FData)) then
+      FData.Serialise(Recorder);
+end;
+
+operator := (const Value: Boolean): TJSONWriter;
+begin
+   Result := TJSONWriter.Create();
+   Result.SetValue(Value);
+end;
+
+operator := (const Value: Double): TJSONWriter;
+begin
+   Result := TJSONWriter.Create();
+   Result.SetValue(Value);
+end;
+
+operator := (const Value: UTF8String): TJSONWriter;
+begin
+   Result := TJSONWriter.Create();
+   Result.SetValue(Value);
+end;
+
 initialization
-   {$IFDEF TESTS} TestJSON(); {$ENDIF}
+   {$IFDEF TESTS} TestJSONReader(); {$ENDIF}
 end.

@@ -46,6 +46,7 @@ uses
          if (World.PlayerCount > World.ProvinceCount) then
             raise Exception.Create('too many players specified');
          World.DistributePlayers();
+         World.RandomiseIDs();
          World.SaveData(FirstTurnDir);
       finally
          World.Free();

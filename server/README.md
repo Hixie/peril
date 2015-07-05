@@ -24,6 +24,10 @@ The world.json file should be of the form:
 
 Province IDs are the index of the province objects in the `provinces` array.
 
+The provinces form a graph with directed edges. Relationships are not
+necessarily symmetrical. It might be possible to go down-river, but
+not up-river.
+
 
 ## Turns
 

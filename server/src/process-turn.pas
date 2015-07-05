@@ -22,16 +22,20 @@ uses
         players: [ player, player, player, ... ],
       }
 
-   // Provinces and players are referenced by their position in those
-   // arrays, which we call their IDs.
+   // Players are referenced by their position in those arrays, which
+   // we call their IDs.
+
+   // Provinces are referenced by their ID which is given in the JSON
+   // object, see below.
 
    // Each province is a JSON object with the following format:
 
       {
+        id: number, // the province ID
         name: 'string...',
         owner: number, // the player ID, 0..N-1
         troups: number,
-        neighbours: [ number, number, ... ], // the province IDs
+        neighbours: [ number, number, ... ], // province IDs
       }
 
    // Each player is a JSON object with the following format:
@@ -50,9 +54,9 @@ uses
 
       {
         action: 'move',
-        from: number, // provide ID
-        to: number, // provide ID
-        count: number, // number of troups to move
+        from: number, // province ID
+        to: number, // province ID
+        count: number, // number of troops to move
       }
 
    // If there are insufficient turn files for the last turn, then the
@@ -69,6 +73,8 @@ uses
       World := TPerilWorld.Create();
       try
          World.LoadData(LastTurnDir + '/server.json', [pdfProvinces, pdfPlayers]);
+         World.LoadInstructions(LastTurnDir);
+         World.ExecuteInstructions();
          World.SaveData(NextTurnDir);
       finally
          World.Free();

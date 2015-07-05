@@ -4,6 +4,9 @@ unit players;
 
 interface
 
+uses
+   cardinalhashtable;
+
 type
    TPlayer = class
     protected
@@ -15,6 +18,9 @@ type
      property Name: UTF8String read FName;
      property ID: Cardinal read FID;
    end;
+
+type
+   TPlayerHashTable = specialize TCardinalHashTable <TPlayer>;
 
 implementation
 
