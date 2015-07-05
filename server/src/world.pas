@@ -67,12 +67,28 @@ var
 begin
    try
       for Province in FProvinces.Values do // $R-
+      begin
+         Assert(Assigned(Province));
          Province.Free();
-      FProvinces.Free();
-      for Player in FPlayers do // $R-
-         Player.Free();
+      end;
    except
-      Writeln('Failure during TPerilWorld.Destroy():');
+      Writeln('Failure during TPerilWorld.Destroy(), freeing provinces:');
+      ReportCurrentException();
+   end;
+   try
+      FProvinces.Free();
+   except
+      Writeln('Failure during TPerilWorld.Destroy(), freeing provinces hash table:');
+      ReportCurrentException();
+   end;
+   try
+      for Player in FPlayers do // $R-
+      begin
+         Assert(Assigned(Player));
+         Player.Free();
+      end;
+   except
+      Writeln('Failure during TPerilWorld.Destroy(), freeing players:');
       ReportCurrentException();
    end;
 end;
@@ -80,75 +96,61 @@ end;
 procedure TPerilWorld.LoadData(const FileName: AnsiString; const Features: TPerilDataFeaturesSet);
 var
    ParsedData, ProvinceData, NeighbourData, PlayerData: TJSON;
-   Province: TProvince;
-   Player, Owner: TPlayer;
+   Owner: TPlayer;
    ProvinceIndex, NeighbourIndex: Cardinal;
    ID, OwnerID, Troops: Cardinal;
 begin
    ParsedData := ParseJSON(ReadTextFile(FileName));
-   try try
+   try
       if (pdfPlayers in Features) then
       begin
          Assert(FPlayers.Length = 0);
-         if (Assigned(ParsedData['players'])) then
-            for PlayerData in ParsedData['players'] do
-               AddPlayer(TPlayer.Create(PlayerData['name']));
+         if (Assigned(ParsedData['Players'])) then
+            for PlayerData in ParsedData['Players'] do
+               AddPlayer(TPlayer.Create(PlayerData['Name']));
       end;
       if (pdfProvinces in Features) then
       begin
          Assert(FProvinces.Count = 0);
-         if (Assigned(ParsedData['provinces'])) then
+         if (Assigned(ParsedData['Provinces'])) then
          begin
-            for ProvinceData in ParsedData['provinces'] do
+            for ProvinceData in ParsedData['Provinces'] do
             begin
-               if (Assigned(ProvinceData['id'])) then
-                  ID := ProvinceData['id']
+               if (Assigned(ProvinceData['ID'])) then
+                  ID := ProvinceData['ID']
                else
                   ID := FProvinces.Count;
                Owner := nil;
-               if (Assigned(ProvinceData['owner'])) then
+               if (Assigned(ProvinceData['Owner'])) then
                begin
-                  OwnerID := ProvinceData['owner'];
+                  OwnerID := ProvinceData['Owner'];
                   if (OwnerID < FPlayers.Length) then
                      Owner := FPlayers[OwnerID];
                end;
                Troops := 0;
-               if (Assigned(Owner) and Assigned(ProvinceData['troops'])) then
-                  Troops := ProvinceData['troops'];
-               AddProvince(TProvince.Create(ProvinceData['name'], ID, Owner, Troops));
+               if (Assigned(Owner) and Assigned(ProvinceData['Troops'])) then
+                  Troops := ProvinceData['Troops'];
+               AddProvince(TProvince.Create(ProvinceData['Name'], ID, Owner, Troops));
             end;
             ProvinceIndex := 0;
-            for ProvinceData in ParsedData['provinces'] do
+            for ProvinceData in ParsedData['Provinces'] do
             begin
-               if (Assigned(ProvinceData['id'])) then
-                  ID := ProvinceData['id']
+               if (Assigned(ProvinceData['ID'])) then
+                  ID := ProvinceData['ID']
                else
                   ID := ProvinceIndex;
                Assert(FProvinces.Has(ID));
-               for NeighbourData in ProvinceData['neighbours'] do
+               for NeighbourData in ProvinceData['Neighbours'] do
                begin
                   NeighbourIndex := NeighbourData;
                   if (not FProvinces.Has(NeighbourIndex)) then
-                     raise Exception.Create('syntax error: neighbour index unknown');
+                     raise Exception.Create('syntax error: unknown neighbour ID');
                   FProvinces[ID].AddNeighbour(FProvinces[NeighbourIndex]);
                end;
                Inc(ProvinceIndex);
             end;
          end;
       end;
-   except
-      try
-         for Province in FProvinces.Values do // $R-
-            Province.Free();
-         for Player in FPlayers do // $R-
-            Player.Free();
-      except
-         Writeln('Failed to free data during exception handler.');
-         ReportCurrentException();
-      end;
-      Writeln('Failed to parse server state.');
-      raise;
-   end;
    finally
       ParsedData.Free();
    end;
@@ -177,18 +179,18 @@ begin
    // XXX this is very inefficient
    Writer := TJSONWriter.Create();
    if (Assigned(Player)) then
-      Writer['player'].SetValue(Player.ID);
+      writer['Player'].SetValue(Player.ID);
    Index := 0;
    for Province in FProvinces.Values do // $R-
    begin
       if (Assigned(Player) and not Province.CanBeSeenBy(Player)) then
          continue;
-      Writer['provinces'][Index]['id'].SetValue(Province.ID);
-      Writer['provinces'][Index]['name'].SetValue(Province.Name);
+      Writer['Provinces'][Index]['ID'].SetValue(Province.ID);
+      Writer['Provinces'][Index]['Name'].SetValue(Province.Name);
       if (Assigned(Province.Owner)) then
       begin
-         Writer['provinces'][Index]['owner'].SetValue(Province.Owner.ID);
-         Writer['provinces'][Index]['troops'].SetValue(Province.TroopCount);
+         Writer['Provinces'][Index]['Owner'].SetValue(Province.Owner.ID);
+         Writer['Provinces'][Index]['Troops'].SetValue(Province.TroopCount);
       end;
       if (not Assigned(Player) or Province.NeighboursCanBeSeenBy(Player)) then
       begin
@@ -197,7 +199,7 @@ begin
             SubIndex := 0;
             for Neighbour in Neighbours do // $R-
             begin
-               Writer['provinces'][Index]['neighbours'][SubIndex].SetValue(Neighbour.ID);
+               Writer['Provinces'][Index]['Neighbours'][SubIndex].SetValue(Neighbour.ID);
                Inc(SubIndex);
             end;
          finally
@@ -209,7 +211,7 @@ begin
    Index := 0;
    for CurrentPlayer in FPlayers do // $R-
    begin
-      Writer['players'][Index]['name'].SetValue(CurrentPlayer.Name);
+      Writer['Players'][Index]['Name'].SetValue(CurrentPlayer.Name);
       Inc(Index);
    end;
    Recorder := TStringRecorderForStrings.Create();
@@ -311,7 +313,7 @@ begin
                         raise ESyntaxError.Create('unknown "to"');
                      if (not Action.Dest.CanBeSeenBy(Player)) then
                         raise ESyntaxError.Create('unknown "to"');
-                     XXX;
+                     // XXX;
                   end
                   else
                   begin
@@ -335,7 +337,7 @@ end;
 
 procedure TPerilWorldTurn.ExecuteInstructions();
 begin
-   XXX;
+   // XXX;
 end;
 
 end.

@@ -18,9 +18,9 @@ uses
    // The state-for-playerI.json JSON files have the following format:
 
       {
-        player: I,
-        provinces: [ province, province, province, ... ],
-        players: [ player, player, player, ... ],
+        Player: I,
+        Players: [ player, player, player, ... ],
+        Provinces: [ province, province, province, ... ],
       }
 
    // Players are referenced by their position in those arrays, which
@@ -32,32 +32,32 @@ uses
    // Each province is a JSON object with the following format:
 
       {
-        id: number, // the province ID
-        name: 'string...',
-        owner: number, // the player ID, 0..N-1
-        troups: number,
-        neighbours: [ number, number, ... ], // province IDs
+        ID: number, // the province ID
+        Name: 'string...',
+        Owner: number, // the player ID, 0..N-1
+        Troups: number,
+        Neighbours: [ number, number, ... ], // province IDs
       }
 
    // Each player is a JSON object with the following format:
 
       {
-        name: 'string...',
+        Name: 'string...',
       }
 
    // The turn-for-playerI.json JSON files have the following format:
 
       { 
-        actions: [ action, action, ... ],
+        Actions: [ action, action, ... ],
       }
 
    // Each action is a JSON object with the following format:
 
       {
-        action: 'move',
-        from: number, // province ID
-        to: number, // province ID
-        count: number, // number of troops to move
+        Action: 'move',
+        From: number, // province ID
+        To: number, // province ID
+        Count: number, // number of troops to move
       }
 
    // If there are insufficient turn files for the last turn, then the

@@ -1,1 +1,1 @@
-{ "provinces": [ { "name": "Geneva", "neighbours": [1, 2] }, { "name": "Lausanne", "neighbours": [0, 2] }, { "name": "Martigny", "neighbours": [0, 1] } ] }
+{ "Provinces": [ { "Name": "Geneva", "Neighbours": [1, 2] }, { "Name": "Lausanne", "Neighbours": [0, 2] }, { "Name": "Martigny", "Neighbours": [0, 1] } ] }

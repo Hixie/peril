@@ -13,22 +13,29 @@ uses
    // The world JSON files have the following format:
 
       {
-        provinces: [ province, province, province, ... ],
+        Provinces: [ province, province, province, ... ],
       }
+
+   // Each province is a JSON object with the following format:
+
+      {
+        Name: 'string...',
+        Neighbours: [ number, number, ... ], // province IDs
+      }
+
+   // Provinces are referenced by their position in the Provinces
+   // array, which we call their ID.
 
    // The players JSON files have the following format:
 
       {
-        players: [ player, player, player, ... ],
+        Players: [ player, player, player, ... ],
       }
-
-   // Provinces and players are referenced by their position in those
-   // arrays, which we call their IDs.
 
    // Each player is a JSON object with the following format:
 
       {
-        name: 'string...',
+        Name: 'string...',
       }
 
    procedure StartGame(const ServerFile, PlayerFile, FirstTurnDir: AnsiString);
