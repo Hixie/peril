@@ -65,13 +65,13 @@ uses
 
    procedure ProcessTurn(const LastTurnDir, NextTurnDir: AnsiString);
    var
-      World: TPerilWorld;
+      World: TPerilWorldTurn;
    begin
       if (not DirectoryExists(LastTurnDir)) then
          raise Exception.Create('first argument is not a directory that exists');
       if (not DirectoryExists(NextTurnDir)) then
          raise Exception.Create('second argument is not a directory that exists');
-      World := TPerilWorld.Create();
+      World := TPerilWorldTurn.Create();
       try
          World.LoadData(LastTurnDir + '/server.json', [pdfProvinces, pdfPlayers]);
          World.LoadInstructions(LastTurnDir);

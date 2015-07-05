@@ -10,7 +10,7 @@ uses
 type
    TPerilDataFeatures = (pdfProvinces, pdfPlayers);
    TPerilDataFeaturesSet = set of TPerilDataFeatures;
-   TPerilWorld = abstract class
+   TPerilWorld = class abstract
     protected type
      TPlayerArray = specialize PlasticArray <TPlayer, TObjectUtils>;
     protected
@@ -154,62 +154,6 @@ begin
    end;
 end;
 
-procedure TPerilWorld.LoadInstructions(const Directory: AnsiString);
-var
-   Player: TPlayer;
-   ParsedData, ParsedAction: TJSON;
-   Action: TMoveAction;
-begin
-   for Player in FPlayers do // $R-
-   begin
-      try
-         ParsedData := ParseJSON(ReadTextFile(Directory + '/actions-for-player' + IntToStr(Player.ID) + '.json'));
-         try
-            if (Assigned(ParsedData['actions'])) then
-            begin
-               for ParsedAction in ParsedData['actions'] do
-               begin
-                  if (ParsedAction['action'] = 'move') then
-                  begin
-                     Action.Source := FProvinces[ParsedAction['from']];
-                     if (not (Assigned(Action.Source))) then
-                        raise ESyntaxError.Create('unknown "from"');
-                     if (Action.Source.Owner <> Player) then
-                        raise ESyntaxError.Create('unknown "from"');
-                     if (not Action.Source.CanBeSeenBy(Player)) then
-                        raise ESyntaxError.Create('unknown "from"');
-                     Action.Count := ParsedAction['count'];
-                     if (Action.Count > Action.Source.TroopCount) then
-                        raise ESyntaxError.Create('requested troops unavailable');
-                     Action.Dest := FProvinces[ParsedAction['to']];
-                     if (not Assigned(Action.Dest)) then
-                        raise ESyntaxError.Create('unknown "to"');
-                     if (not Action.Source.HasNeighbour(Action.Dest)) then
-                        raise ESyntaxError.Create('unknown "to"');
-                     if (not Action.Dest.CanBeSeenBy(Player)) then
-                        raise ESyntaxError.Create('unknown "to"');
-                     XXX;
-                  end
-                  else
-                  begin
-                     // Ignore this action, it's an unsupported or bogus type
-                     raise ESyntaxError.Create('unknown "action"');
-                  end;
-               end;
-            end;
-         finally
-            ParsedData.Free();
-         end;
-      except
-         on E: Exception do
-         begin
-            Writeln('Failed to parse instructions from ', Player.Name);
-            ReportCurrentException();
-         end;
-      end;            
-   end;
-end;
-
 procedure TPerilWorld.AddProvince(const Province: TProvince);
 begin
    FProvinces[Province.ID] := Province;
@@ -219,48 +163,6 @@ procedure TPerilWorld.AddPlayer(const Player: TPlayer);
 begin
    Player.SetID(FPlayers.Length);
    FPlayers.Push(Player);
-end;
-
-procedure TPerilWorld.DistributePlayers();
-var
-   Index: Cardinal;
-   ProvinceList: array of TProvince;
-   Province: TProvince;
-begin
-   Assert(FProvinces.Count > 0);
-   Assert(FPlayers.Length > 0);
-   Assert(FPlayers.Length < FProvinces.Count);
-   SetLength(ProvinceList, FProvinces.Count);
-   Index := 0;
-   for Province in FProvinces.Values do
-   begin
-      ProvinceList[Index] := Province;
-      Inc(Index);
-   end;
-   // randomly assign players to provinces
-   FisherYatesShuffle(ProvinceList[0], Length(ProvinceList), SizeOf(TProvince)); // $R-
-   for Index := 0 to FPlayers.Length-1 do // $R-
-      ProvinceList[Index].AssignInitialPlayer(FPlayers[Index]);
-end;
-
-procedure TPerilWorld.RandomiseIDs();
-var
-   Province: TProvince;
-   NewTable: TProvinceHashTable;
-begin
-   NewTable := TProvinceHashTable.Create();
-   for Province in FProvinces.Values do // $R-
-   begin
-      Province.SetID(NewTable.GetNewID());
-      NewTable.Add(Province.ID, Province);
-   end;
-   FProvinces.Free();
-   FProvinces := NewTable;
-end;
-
-procedure TPerilWorld.ExecuteInstructions();
-begin
-   XXX;
 end;
 
 function TPerilWorld.Serialise(const Player: TPlayer = nil): UTF8String;
@@ -334,6 +236,106 @@ end;
 function TPerilWorld.CountPlayers(): Cardinal;
 begin
    Result := FPlayers.Length;
+end;
+
+
+procedure TPerilWorldCreator.DistributePlayers();
+var
+   Index: Cardinal;
+   ProvinceList: array of TProvince;
+   Province: TProvince;
+begin
+   Assert(FProvinces.Count > 0);
+   Assert(FPlayers.Length > 0);
+   Assert(FPlayers.Length < FProvinces.Count);
+   SetLength(ProvinceList, FProvinces.Count);
+   Index := 0;
+   for Province in FProvinces.Values do
+   begin
+      ProvinceList[Index] := Province;
+      Inc(Index);
+   end;
+   // randomly assign players to provinces
+   FisherYatesShuffle(ProvinceList[0], Length(ProvinceList), SizeOf(TProvince)); // $R-
+   for Index := 0 to FPlayers.Length-1 do // $R-
+      ProvinceList[Index].AssignInitialPlayer(FPlayers[Index]);
+end;
+
+procedure TPerilWorldCreator.RandomiseIDs();
+var
+   Province: TProvince;
+   NewTable: TProvinceHashTable;
+begin
+   NewTable := TProvinceHashTable.Create();
+   for Province in FProvinces.Values do // $R-
+   begin
+      Province.SetID(NewTable.GetNewID());
+      NewTable.Add(Province.ID, Province);
+   end;
+   FProvinces.Free();
+   FProvinces := NewTable;
+end;
+
+
+procedure TPerilWorldTurn.LoadInstructions(const Directory: AnsiString);
+var
+   Player: TPlayer;
+   ParsedData, ParsedAction: TJSON;
+   Action: TMoveAction;
+begin
+   for Player in FPlayers do // $R-
+   begin
+      try
+         ParsedData := ParseJSON(ReadTextFile(Directory + '/actions-for-player' + IntToStr(Player.ID) + '.json'));
+         try
+            if (Assigned(ParsedData['actions'])) then
+            begin
+               for ParsedAction in ParsedData['actions'] do
+               begin
+                  if (ParsedAction['action'] = 'move') then
+                  begin
+                     Action.Source := FProvinces[ParsedAction['from']];
+                     if (not (Assigned(Action.Source))) then
+                        raise ESyntaxError.Create('unknown "from"');
+                     if (Action.Source.Owner <> Player) then
+                        raise ESyntaxError.Create('unknown "from"');
+                     if (not Action.Source.CanBeSeenBy(Player)) then
+                        raise ESyntaxError.Create('unknown "from"');
+                     Action.Count := ParsedAction['count'];
+                     if (Action.Count > Action.Source.TroopCount) then
+                        raise ESyntaxError.Create('requested troops unavailable');
+                     Action.Dest := FProvinces[ParsedAction['to']];
+                     if (not Assigned(Action.Dest)) then
+                        raise ESyntaxError.Create('unknown "to"');
+                     if (not Action.Source.HasNeighbour(Action.Dest)) then
+                        raise ESyntaxError.Create('unknown "to"');
+                     if (not Action.Dest.CanBeSeenBy(Player)) then
+                        raise ESyntaxError.Create('unknown "to"');
+                     XXX;
+                  end
+                  else
+                  begin
+                     // Ignore this action, it's an unsupported or bogus type
+                     raise ESyntaxError.Create('unknown "action"');
+                  end;
+               end;
+            end;
+         finally
+            ParsedData.Free();
+         end;
+      except
+         on E: Exception do
+         begin
+            Writeln('Failed to parse instructions from ', Player.Name);
+            ReportCurrentException();
+         end;
+      end;            
+   end;
+end;
+
+procedure TPerilWorldTurn.ExecuteInstructions();
+begin
+   XXX;
 end;
 
 end.

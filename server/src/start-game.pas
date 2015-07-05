@@ -33,11 +33,11 @@ uses
 
    procedure StartGame(const ServerFile, PlayerFile, FirstTurnDir: AnsiString);
    var
-      World: TPerilWorld;
+      World: TPerilWorldCreator;
    begin
       if (not DirectoryExists(FirstTurnDir)) then
          raise Exception.Create('third argument is not a directory that exists');
-      World := TPerilWorld.Create();
+      World := TPerilWorldCreator.Create();
       try
          World.LoadData(ServerFile, [pdfProvinces]);
          World.LoadData(PlayerFile, [pdfPlayers]);
