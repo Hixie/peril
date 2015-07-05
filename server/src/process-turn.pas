@@ -10,21 +10,23 @@ uses
 
    // The last turn directory should contain these files:
    //  server.json
-   //  state-for-playerI.json
+   //  state-for-playerI.json (these are ignored by this program)
    //  turn-for-playerI.json
    // (for I == 0..N-1 where N is the number of players)
    // The next turn directory should be empty (and files in it will be overwritten).
 
-   // The state-for-playerI.json JSON files have the following format:
+   // The state-for-playerI.json JSON files are ignored (they are the
+   // output from the last turn; see below). The server.json file has
+   // the following format:
 
       {
-        Player: I,
+        Turn: T,
         Players: [ player, player, player, ... ],
         Provinces: [ province, province, province, ... ],
       }
 
-   // Players are referenced by their position in those arrays, which
-   // we call their IDs.
+   // Players are referenced by their position in the Players array,
+   // which we call their IDs.
 
    // Provinces are referenced by their ID which is given in the JSON
    // object, see below.
@@ -61,7 +63,21 @@ uses
       }
 
    // If there are insufficient turn files for the last turn, then the
-   // server does nothing.
+   // server does nothing. If the files are malformed, they are
+   // treated as empty orders. If some orders are invalid, those
+   // orders are ignored, but the rest are applied.
+
+   // Otherwise, it outputs new server.json and state-for-playerI.json
+   // files. The server.json file is for internal use (it tracks the
+   // server state). The state-for-playerI.json JSON files have the
+   // following format:
+
+      {
+        Player: I, // the played ID
+        Turn: T, // the turn number, first turn (as output by start-game) is 1
+        Players: [ player, player, player, ... ], // see above for format 
+        Provinces: [ province, province, province, ... ], // see above for format
+      }
 
    procedure ProcessTurn(const LastTurnDir, NextTurnDir: AnsiString);
    var

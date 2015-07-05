@@ -8,7 +8,7 @@ uses
    plasticarrays, genericutils, provinces, players;
 
 type
-   TPerilDataFeatures = (pdfProvinces, pdfPlayers);
+   TPerilDataFeatures = (pdfProvinces, pdfPlayers, pdfTurnNumber);
    TPerilDataFeaturesSet = set of TPerilDataFeatures;
    TPerilWorld = class abstract
     protected type
@@ -16,6 +16,7 @@ type
     protected
      FProvinces: TProvinceHashTable;
      FPlayers: TPlayerArray;
+     FTurnNumber: Cardinal;
      function CountProvinces(): Cardinal;
      procedure AddProvince(const Province: TProvince);
      function CountPlayers(): Cardinal;
@@ -151,6 +152,11 @@ begin
             end;
          end;
       end;
+      if (pdfTurnNumber in Features) then
+      begin
+         if (Assigned(ParsedData['Turn'])) then
+            FTurnNumber := ParsedData['Turn'];
+      end;
    finally
       ParsedData.Free();
    end;
@@ -178,8 +184,9 @@ var
 begin
    // XXX this is very inefficient
    Writer := TJSONWriter.Create();
+   Writer['Turn'].SetValue(FTurnNumber);
    if (Assigned(Player)) then
-      writer['Player'].SetValue(Player.ID);
+      Writer['Player'].SetValue(Player.ID);
    Index := 0;
    for Province in FProvinces.Values do // $R-
    begin
@@ -261,6 +268,7 @@ begin
    FisherYatesShuffle(ProvinceList[0], Length(ProvinceList), SizeOf(TProvince)); // $R-
    for Index := 0 to FPlayers.Length-1 do // $R-
       ProvinceList[Index].AssignInitialPlayer(FPlayers[Index]);
+   FTurnNumber := 1;
 end;
 
 procedure TPerilWorldCreator.RandomiseIDs();
@@ -337,7 +345,8 @@ end;
 
 procedure TPerilWorldTurn.ExecuteInstructions();
 begin
-   // XXX;
+   Inc(FTurnNumber);
+   // XXX
 end;
 
 end.

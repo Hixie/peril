@@ -38,6 +38,9 @@ uses
         Name: 'string...',
       }
 
+   // This program outputs the same format of data as process-turn
+   // (qv), with the Turn field set to 1.
+
    procedure StartGame(const ServerFile, PlayerFile, FirstTurnDir: AnsiString);
    var
       World: TPerilWorldCreator;
