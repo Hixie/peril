@@ -7,6 +7,9 @@ interface
 uses
    plasticarrays, genericutils, cardinalhashtable, players;
 
+const
+   kInitialTroops = 3;
+
 type
    TProvince = class
     public type
@@ -17,9 +20,11 @@ type
      FNeighbours: TArray;
      FID: Cardinal;
      FOwner: TPlayer;
+     FTroopCount: Cardinal;
     public
-     constructor Create(const Name: UTF8String; const ID: Cardinal);
+     constructor Create(const Name: UTF8String; const ID: Cardinal; const Owner: TPlayer; const Troops: Cardinal);
      procedure AddNeighbour(const Neighbour: TProvince);
+     function HasNeighbour(const Neighbour: TProvince): Boolean;
      procedure SetID(const NewID: Cardinal);
      procedure AssignInitialPlayer(const Player: TPlayer);
      function CanBeSeenBy(const Player: TPlayer): Boolean;
@@ -27,6 +32,7 @@ type
      property Name: UTF8String read FName;
      property ID: Cardinal read FID;
      property Owner: TPlayer read FOwner;
+     property TroopCount: Cardinal read FTroopCount;
      function GetNeighbours(): TReadOnlyArray;
    end;
 
@@ -35,15 +41,22 @@ type
 
 implementation
 
-constructor TProvince.Create(const Name: UTF8String; const ID: Cardinal);
+constructor TProvince.Create(const Name: UTF8String; const ID: Cardinal; const Owner: TPlayer; const Troops: Cardinal);
 begin
    FName := Name;
    FID := ID;
+   FOwner := Owner;
+   FTroopCount := Troops;
 end;
 
 procedure TProvince.AddNeighbour(const Neighbour: TProvince);
 begin
    FNeighbours.Push(Neighbour);
+end;
+
+function TProvince.HasNeighbour(const Neighbour: TProvince): Boolean;
+begin
+   Result := FNeighbours.Contains(Neighbour);
 end;
 
 procedure TProvince.SetID(const NewID: Cardinal);
@@ -55,6 +68,7 @@ procedure TProvince.AssignInitialPlayer(const Player: TPlayer);
 begin
    Assert(FOwner = nil);
    FOwner := Player;
+   FTroopCount := kInitialTroops;
 end;
 
 function TProvince.CanBeSeenBy(const Player: TPlayer): Boolean;

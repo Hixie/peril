@@ -141,6 +141,7 @@ type
       FValue: Double;
    end;
    operator := (const Value: TJSON): Double;
+   operator := (const Value: TJSON): Cardinal;
    operator = (const Op1: TJSON; const Op2: Double): Boolean;
 
 type
@@ -400,6 +401,17 @@ end;
 operator := (const Value: TJSON): Double;
 begin
    Result := (Value as TJSONNumber).FValue;
+end;
+
+operator := (const Value: TJSON): Cardinal;
+var
+   Temp: Double;
+begin
+   Temp := (Value as TJSONNumber).FValue;
+   if ((Temp = Trunc(Temp)) and (Temp >= Low(Result)) and (Temp <= High(Result))) then
+      Result := Trunc(Temp) // $R-
+   else
+      raise EConvertError.Create('Value is not an integer');
 end;
 
 operator = (const Op1: TJSON; const Op2: Double): Boolean;
@@ -739,6 +751,8 @@ var
          SkipWhitespace();
          if (CurrentCharacter <> Ord('}')) then
             repeat
+               if (CurrentCharacter = Ord('}')) then
+                  Error('trailing comma in object');
                if (CurrentCharacter <> Ord('"')) then
                   Error('invalid key in object');
                Key := ParseString();

@@ -5,7 +5,7 @@ unit plasticarrays;
 interface
 
 const
-   kGrowthFactor: Double = 1.5;
+   kGrowthFactor: Double = 1.25;
 
 type
    generic PlasticArray <T, Utils> = record

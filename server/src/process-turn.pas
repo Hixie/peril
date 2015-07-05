@@ -3,6 +3,7 @@
 program processturn;
 uses
    sysutils,
+   exceptions,
    world;
 
    // Command line argument: directory of last turn, directory of next turn
@@ -89,7 +90,12 @@ begin
    except
       on E: Exception do
       begin
-         Writeln(E.Message);
+         {$IFDEF DEBUG}
+            Writeln('Unexpected failure in process-turn:');
+            ReportCurrentException();
+         {$ELSE}
+            Writeln('process-turn: ', E.Message);
+         {$ENDIF}
          ExitCode := 1;
       end;
    end;
