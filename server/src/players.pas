@@ -5,7 +5,7 @@ unit players;
 interface
 
 uses
-   cardinalhashtable;
+   cardinalhashtable, hashfunctions, hashtable, genericutils;
 
 type
    TPlayer = class
@@ -20,7 +20,13 @@ type
    end;
 
 type
-   TPlayerHashTable = specialize TCardinalHashTable <TPlayer>;
+   TPlayerIDHashTable = specialize TCardinalHashTable <TPlayer>; // cardinal -> TPlayer
+
+   generic TPlayerHashTable <T> = class (specialize THashTable <TPlayer, T, TObjectUtils>) // TPlayer => T
+      constructor Create(PredictedCount: THashTableSizeInt = 1);
+   end;
+
+function TPlayerHash32(const Key: TPlayer): DWord;
 
 implementation
 
@@ -32,6 +38,16 @@ end;
 procedure TPlayer.SetID(const NewID: Cardinal);
 begin
    FID := NewID;
+end;
+
+function TPlayerHash32(const Key: TPlayer): DWord;
+begin
+   Result := ObjectHash32(Key);
+end;
+
+constructor TPlayerHashTable.Create(PredictedCount: THashTableSizeInt = 1);
+begin
+   inherited Create(@TPlayerHash32, PredictedCount);
 end;
 
 end.

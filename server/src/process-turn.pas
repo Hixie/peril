@@ -89,7 +89,7 @@ uses
          raise Exception.Create('second argument is not a directory that exists');
       World := TPerilWorldTurn.Create();
       try
-         World.LoadData(LastTurnDir + '/server.json', [pdfProvinces, pdfPlayers]);
+         World.LoadData(LastTurnDir + '/server.json', [pdfProvinces, pdfPlayers, pdfTurnNumber]);
          World.LoadInstructions(LastTurnDir);
          World.ExecuteInstructions();
          World.SaveData(NextTurnDir);

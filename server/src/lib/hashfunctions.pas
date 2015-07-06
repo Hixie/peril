@@ -11,6 +11,7 @@ function Integer32Hash32(const Key: DWord): DWord; inline;
 function Integer64Hash32(const Key: QWord): DWord; inline;
 function PtrUIntHash32(const Key: PtrUInt): DWord; inline;
 function PointerHash32(const Key: Pointer): DWord; inline;
+function ObjectHash32(const Key: TObject): DWord; inline;
 function TMethodHash32(const Key: TMethod): DWord; inline;
 function RawByteStringHash32(const Key: RawByteString): DWord; inline;
 function AnsiStringHash32(const Key: AnsiString): DWord; inline;
@@ -80,6 +81,11 @@ begin
    {$HINTS OFF} // Otherwise it complains that casting Pointer to PtrUInt is not portable, but it is portable, by definition
    Result := PtrUIntHash32(PtrUInt(Key));
    {$HINTS ON}
+end;
+
+function ObjectHash32(const Key: TOBject): DWord;
+begin
+   Result := PtrUIntHash32(PtrUInt(Key));
 end;
 
 function TMethodHash32(const Key: TMethod): DWord;

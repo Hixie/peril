@@ -40,6 +40,7 @@ type
    TPerilWorldTurn = class(TPerilWorld)
     protected type
      TMoveAction = record
+        Player: TPlayer;
         Source, Dest: TProvince;
         Count: Cardinal;
      end;
@@ -197,7 +198,7 @@ begin
       if (Assigned(Province.Owner)) then
       begin
          Writer['Provinces'][Index]['Owner'].SetValue(Province.Owner.ID);
-         Writer['Provinces'][Index]['Troops'].SetValue(Province.TroopCount);
+         Writer['Provinces'][Index]['Troops'].SetValue(Province.ResidentTroopPopulation);
       end;
       if (not Assigned(Player) or Province.NeighboursCanBeSeenBy(Player)) then
       begin
@@ -298,35 +299,46 @@ begin
       try
          ParsedData := ParseJSON(ReadTextFile(Directory + '/actions-for-player' + IntToStr(Player.ID) + '.json'));
          try
-            if (Assigned(ParsedData['actions'])) then
+            if (Assigned(ParsedData['Actions'])) then
             begin
-               for ParsedAction in ParsedData['actions'] do
+               for ParsedAction in ParsedData['Actions'] do
                begin
-                  if (ParsedAction['action'] = 'move') then
-                  begin
-                     Action.Source := FProvinces[ParsedAction['from']];
-                     if (not (Assigned(Action.Source))) then
-                        raise ESyntaxError.Create('unknown "from"');
-                     if (Action.Source.Owner <> Player) then
-                        raise ESyntaxError.Create('unknown "from"');
-                     if (not Action.Source.CanBeSeenBy(Player)) then
-                        raise ESyntaxError.Create('unknown "from"');
-                     Action.Count := ParsedAction['count'];
-                     if (Action.Count > Action.Source.TroopCount) then
-                        raise ESyntaxError.Create('requested troops unavailable');
-                     Action.Dest := FProvinces[ParsedAction['to']];
-                     if (not Assigned(Action.Dest)) then
-                        raise ESyntaxError.Create('unknown "to"');
-                     if (not Action.Source.HasNeighbour(Action.Dest)) then
-                        raise ESyntaxError.Create('unknown "to"');
-                     if (not Action.Dest.CanBeSeenBy(Player)) then
-                        raise ESyntaxError.Create('unknown "to"');
-                     // XXX;
-                  end
-                  else
-                  begin
-                     // Ignore this action, it's an unsupported or bogus type
-                     raise ESyntaxError.Create('unknown "action"');
+                  try
+                     if (ParsedAction['Action'] = 'move') then
+                     begin
+                        Action.Player := Player;
+                        Action.Source := FProvinces[ParsedAction['From']];
+                        if (not (Assigned(Action.Source))) then
+                           raise ESyntaxError.Create('unknown "from"');
+                        if (Action.Source.Owner <> Player) then
+                           raise ESyntaxError.Create('unknown "from"');
+                        if (not Action.Source.CanBeSeenBy(Player)) then
+                           raise ESyntaxError.Create('unknown "from"');
+                        Action.Dest := FProvinces[ParsedAction['To']];
+                        if (not Assigned(Action.Dest)) then
+                           raise ESyntaxError.Create('unknown "to"');
+                        if (not Action.Source.HasNeighbour(Action.Dest)) then
+                           raise ESyntaxError.Create('unknown "to"');
+                        if (not Action.Dest.CanBeSeenBy(Player)) then
+                           raise ESyntaxError.Create('unknown "to"');
+                        if (Action.Source = Action.Dest) then
+                           raise ESyntaxError.Create('"from" and "to" are the same');
+                        Action.Count := ParsedAction['Count'];
+                        if (not Action.Source.CommitTroops(Action.Count, Player)) then
+                           raise ESyntaxError.Create('overcommited troops');
+                        FInstructions.Push(Action);
+                     end
+                     else
+                     begin
+                        // Ignore this action, it's an unsupported or bogus type
+                        raise ESyntaxError.Create('unknown "action"');
+                     end;
+                  except
+                     on E: Exception do
+                     begin
+                        Writeln('Failed to parse action in instructions from ', Player.Name);
+                        ReportCurrentException();
+                     end;
                   end;
                end;
             end;
@@ -344,9 +356,17 @@ begin
 end;
 
 procedure TPerilWorldTurn.ExecuteInstructions();
+var
+   Action: TMoveAction;
+   Province: TProvince;
 begin
    Inc(FTurnNumber);
-   // XXX
+   for Action in FInstructions do
+      Action.Dest.ReceiveTroops(Action.Count, Action.Player);
+   for Province in FProvinces.Values do
+      Province.ResolveBattles();
+   for Province in FProvinces.Values do
+      Province.EndTurn();
 end;
 
 end.
