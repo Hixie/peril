@@ -66,11 +66,9 @@ type
      type
       TReadOnlyView = class
        private
-        type
-         PArray = ^PlasticArray;
         var
-          FArray: PArray;
-         constructor Create(AArray: PArray);
+          FArray: PPlasticArray;
+         constructor Create(AArray: PPlasticArray);
          function GetFilledLength(): Cardinal; inline;
          function GetItem(Index: Cardinal): T; inline;
          function GetLast(): T; inline;
@@ -332,7 +330,7 @@ begin
    Result := TEnumerator.Create(@Self);
 end;
 
-constructor PlasticArray.TReadOnlyView.Create(AArray: PArray);
+constructor PlasticArray.TReadOnlyView.Create(AArray: PPlasticArray);
 begin
    Assert(Assigned(AArray));
    FArray := AArray;
