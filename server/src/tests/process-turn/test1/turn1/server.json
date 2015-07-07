@@ -1,0 +1,29 @@
+{
+  "Turn": 1,
+  "Provinces": [
+    {
+      "ID": 2,
+      "Owner": 0,
+      "Neighbours": [ 0, 1 ],
+      "Troops": 3,
+      "Name": "Martigny"
+    },
+    {
+      "ID": 0,
+      "Neighbours": [ 1, 2 ],
+      "Name": "Geneva"
+    },
+    {
+      "ID": 1,
+      "Owner": 1,
+      "Neighbours": [ 0, 2 ],
+      "Troops": 3,
+      "Name": "Lausanne"
+    }
+  ],
+  "Players": [
+    { "Name": "Fred" },
+    { "Name": "Bob" }
+  ]
+}
+

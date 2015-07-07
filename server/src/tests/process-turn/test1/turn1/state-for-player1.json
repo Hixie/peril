@@ -1,0 +1,1 @@
+{"Turn":1,"Provinces":[{"ID":2,"Owner":0,"Troops":3,"Name":"Martigny"},{"ID":0,"Name":"Geneva"},{"ID":1,"Owner":1,"Neighbours":[0,2],"Troops":3,"Name":"Lausanne"}],"Player":1,"Players":[{"Name":"Fred"},{"Name":"Bob"}]}
