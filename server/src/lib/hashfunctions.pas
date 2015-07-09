@@ -50,6 +50,7 @@ begin
    Assert(SizeOf(QWord) * 8 = 64);
    {$PUSH}
    {$OVERFLOWCHECKS OFF}
+   {$RANGECHECKS OFF}
    Scratch := Key;
    { Thomas Wang's hash6432shift - http://www.concentric.net/~Ttwang/tech/inthash.htm }
    Scratch := (not Scratch) + (Scratch shl 18);
@@ -110,6 +111,7 @@ var
 begin
    {$PUSH}
    {$RANGECHECKS OFF}
+   {$OVERFLOWCHECKS OFF}
 
 {$HINTS OFF} // not sure if the four hints for the next few lines are valid or not, but I'm guessing not.
    // djb2 from http://www.cse.yorku.ca/~oz/hash.html:

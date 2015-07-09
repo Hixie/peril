@@ -40,7 +40,7 @@ begin
    MapResult := fpMMap(nil, StatInfo.st_size+1, PROT_READ, MAP_PRIVATE, FileDescriptor, 0); // $R-
    {$PUSH}
    {$WARNINGS OFF} {$HINTS OFF}
-   if (PtrInt(MapResult) < 0) then
+   if (PtrInt(MapResult) = -1) then
       raise EKernelError.Create(fpGetErrNo);
    {$POP}
    fpClose(FileDescriptor);
