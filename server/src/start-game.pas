@@ -8,7 +8,7 @@ uses
 
    // Command line argument: world file, players file, directory of first turn
 
-   // The first turn directory should be empty (and files in it will be overwritten).
+   // The first turn directory should not yet exist and will be created.
 
    // The world JSON files have the following format:
 
@@ -46,8 +46,10 @@ uses
    var
       World: TPerilWorldCreator;
    begin
-      if (not DirectoryExists(FirstTurnDir)) then
-         raise Exception.Create('third argument is not a directory that exists');
+      if (DirectoryExists(FirstTurnDir)) then
+         raise Exception.Create('third argument is a directory that exists');
+      if (not CreateDir(FirstTurnDir)) then
+         raise Exception.Create('could not create directory for first turn');
       World := TPerilWorldCreator.Create();
       try
          World.LoadData(ServerFile, [pdfProvinces]);

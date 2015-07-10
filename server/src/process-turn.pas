@@ -13,7 +13,8 @@ uses
    //  state-for-player-ID.json (these are ignored by this program)
    //  turn-for-player-ID.json
    // (where ID is the player ID)
-   // The next turn directory should be empty (and files in it will be overwritten).
+
+   // The next turn directory should not yet exist (and will be created).
 
    // The state-for-player-ID.json JSON files are ignored (they are the
    // output from the last turn; see below). The server.json file has
@@ -86,8 +87,10 @@ uses
    begin
       if (not DirectoryExists(LastTurnDir)) then
          raise Exception.Create('first argument is not a directory that exists');
-      if (not DirectoryExists(NextTurnDir)) then
-         raise Exception.Create('second argument is not a directory that exists');
+      if (DirectoryExists(NextTurnDir)) then
+         raise Exception.Create('third argument is a directory that exists');
+      if (not CreateDir(NextTurnDir)) then
+         raise Exception.Create('could not create directory for next turn');
       World := TPerilWorldTurn.Create();
       try
          World.LoadData(LastTurnDir + '/server.json', [pdfProvinces, pdfPlayers, pdfTurnNumber]);
