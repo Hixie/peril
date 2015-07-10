@@ -3,7 +3,7 @@
   "Provinces": [
     {
       "ID": 2,
-      "Owner": 0,
+      "Owner": "fred",
       "Neighbours": [ 0, 1 ],
       "Troops": 3,
       "Name": "Martigny"
@@ -15,15 +15,15 @@
     },
     {
       "ID": 1,
-      "Owner": 1,
+      "Owner": "bob",
       "Neighbours": [ 0, 2 ],
       "Troops": 3,
       "Name": "Lausanne"
     }
   ],
   "Players": [
-    { "Name": "Fred" },
-    { "Name": "Bob" }
+    { "Name": "Fred", "ID": "fred" },
+    { "Name": "Bob", "ID": "bob" }
   ]
 }
 

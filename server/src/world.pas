@@ -15,12 +15,11 @@ type
      TPlayerArray = specialize PlasticArray <TPlayer, TObjectUtils>;
     protected
      FProvinces: TProvinceHashTable;
-     FPlayers: TPlayerArray;
+     FPlayers: TPlayerIDHashTable;
      FTurnNumber: Cardinal;
      function CountProvinces(): Cardinal;
      procedure AddProvince(const Province: TProvince);
      function CountPlayers(): Cardinal;
-     procedure AddPlayer(const Player: TPlayer);
      function Serialise(const Player: TPlayer = nil): UTF8String; // outputs JSON of the world
     public
      constructor Create();
@@ -60,6 +59,7 @@ uses
 constructor TPerilWorld.Create();
 begin
    FProvinces := TProvinceHashTable.Create();
+   FPlayers := TPlayerIDHashTable.Create();
 end;
 
 destructor TPerilWorld.Destroy();
@@ -84,7 +84,7 @@ begin
       ReportCurrentException();
    end;
    try
-      for Player in FPlayers do // $R-
+      for Player in FPlayers.Values do // $R-
       begin
          Assert(Assigned(Player));
          Player.Free();
@@ -93,23 +93,57 @@ begin
       Writeln('Failure during TPerilWorld.Destroy(), freeing players:');
       ReportCurrentException();
    end;
+   try
+      FPlayers.Free();
+   except
+      Writeln('Failure during TPerilWorld.Destroy(), freeing players hash table:');
+      ReportCurrentException();
+   end;
 end;
 
 procedure TPerilWorld.LoadData(const FileName: AnsiString; const Features: TPerilDataFeaturesSet);
+
+   function IsValidPlayerID(PlayerID: UTF8String): Boolean;
+   var
+      Index: Cardinal;
+   begin
+      Result := False;
+      if (Length(PlayerID) > 10) then
+         exit;
+      if (Length(PlayerID) < 1) then
+         exit;
+      for Index := 1 to Length(PlayerID) do // $R-
+         if (not (PlayerID[Index] in ['a'..'z'])) then
+            exit;
+      Result := True;
+   end;
+
 var
    ParsedData, ProvinceData, NeighbourData, PlayerData: TJSON;
    Owner: TPlayer;
    ProvinceIndex, NeighbourIndex: Cardinal;
-   ID, OwnerID, Troops: Cardinal;
+   ID, Troops: Cardinal;
+   OwnerID, PlayerID: UTF8String;
 begin
    ParsedData := ParseJSON(ReadTextFile(FileName));
    try
       if (pdfPlayers in Features) then
       begin
-         Assert(FPlayers.Length = 0);
+         Assert(FPlayers.Count = 0);
          if (Assigned(ParsedData['Players'])) then
+         begin
             for PlayerData in ParsedData['Players'] do
-               AddPlayer(TPlayer.Create(PlayerData['Name']));
+            begin
+               if (not Assigned(PlayerData['ID'])) then
+                  raise Exception.Create('syntax error: missing player ID');
+               PlayerID := PlayerData['ID'];
+               if (not IsValidPlayerID(PlayerID)) then
+                  raise Exception.Create('syntax error: invalid player ID');
+               if (FPlayers.Has(PlayerID)) then
+                  raise Exception.Create('syntax error: duplicate player ID');
+               FPlayers[PlayerID] := TPlayer.Create(PlayerData['Name'], PlayerID);
+            end;
+         end;
       end;
       if (pdfProvinces in Features) then
       begin
@@ -126,8 +160,9 @@ begin
                if (Assigned(ProvinceData['Owner'])) then
                begin
                   OwnerID := ProvinceData['Owner'];
-                  if (OwnerID < FPlayers.Length) then
-                     Owner := FPlayers[OwnerID];
+                  if ((not IsValidPlayerID(OwnerID)) or (not FPlayers.Has(OwnerID))) then
+                     raise Exception.Create('syntax error: reference to undeclared player');
+                  Owner := FPlayers[OwnerID];
                end;
                Troops := 0;
                if (Assigned(Owner) and Assigned(ProvinceData['Troops'])) then
@@ -166,12 +201,6 @@ end;
 procedure TPerilWorld.AddProvince(const Province: TProvince);
 begin
    FProvinces[Province.ID] := Province;
-end;
-
-procedure TPerilWorld.AddPlayer(const Player: TPlayer);
-begin
-   Player.SetID(FPlayers.Length);
-   FPlayers.Push(Player);
 end;
 
 function TPerilWorld.Serialise(const Player: TPlayer = nil): UTF8String;
@@ -217,9 +246,10 @@ begin
       Inc(Index);
    end;
    Index := 0;
-   for CurrentPlayer in FPlayers do // $R-
+   for CurrentPlayer in FPlayers.Values do // $R-
    begin
       Writer['Players'][Index]['Name'].SetValue(CurrentPlayer.Name);
+      Writer['Players'][Index]['ID'].SetValue(CurrentPlayer.ID);
       Inc(Index);
    end;
    Recorder := TStringRecorderForStrings.Create();
@@ -234,8 +264,8 @@ var
    Player: TPlayer;
 begin
    WriteTextFile(Directory + '/server.json', Serialise());
-   for Player in FPlayers do // $R-
-      WriteTextFile(Directory + '/state-for-player' + IntToStr(Player.ID) + '.json', Serialise(Player));
+   for Player in FPlayers.Values do // $R-
+      WriteTextFile(Directory + '/state-for-player-' + Player.ID + '.json', Serialise(Player));
 end;
 
 function TPerilWorld.CountProvinces(): Cardinal;
@@ -245,7 +275,7 @@ end;
 
 function TPerilWorld.CountPlayers(): Cardinal;
 begin
-   Result := FPlayers.Length;
+   Result := FPlayers.Count;
 end;
 
 
@@ -254,10 +284,11 @@ var
    Index: Cardinal;
    ProvinceList: array of TProvince;
    Province: TProvince;
+   Player: TPlayer;
 begin
    Assert(FProvinces.Count > 0);
-   Assert(FPlayers.Length > 0);
-   Assert(FPlayers.Length < FProvinces.Count);
+   Assert(FPlayers.Count > 0);
+   Assert(FPlayers.Count < FProvinces.Count);
    SetLength(ProvinceList, FProvinces.Count);
    Index := 0;
    for Province in FProvinces.Values do
@@ -267,8 +298,12 @@ begin
    end;
    // randomly assign players to provinces
    FisherYatesShuffle(ProvinceList[0], Length(ProvinceList), SizeOf(TProvince)); // $R-
-   for Index := 0 to FPlayers.Length-1 do // $R-
-      ProvinceList[Index].AssignInitialPlayer(FPlayers[Index]);
+   Index := 0;
+   for Player in FPlayers.Values do // $R-
+   begin
+      ProvinceList[Index].AssignInitialPlayer(Player);
+      Inc(Index);
+   end;
    FTurnNumber := 1;
 end;
 
@@ -294,10 +329,10 @@ var
    ParsedData, ParsedAction: TJSON;
    Action: TMoveAction;
 begin
-   for Player in FPlayers do // $R-
+   for Player in FPlayers.Values do // $R-
    begin
       try
-         ParsedData := ParseJSON(ReadTextFile(Directory + '/actions-for-player' + IntToStr(Player.ID) + '.json'));
+         ParsedData := ParseJSON(ReadTextFile(Directory + '/actions-for-player-' + Player.ID + '.json'));
          try
             if (Assigned(ParsedData['Actions'])) then
             begin

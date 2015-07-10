@@ -36,6 +36,7 @@ uses
 
       {
         Name: 'string...',
+        id: 'string', // 1-10 character string with only 'a' to 'z' characters
       }
 
    // This program outputs the same format of data as process-turn

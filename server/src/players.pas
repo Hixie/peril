@@ -5,22 +5,26 @@ unit players;
 interface
 
 uses
-   cardinalhashtable, hashfunctions, hashtable, genericutils;
+   hashfunctions, hashtable, genericutils;
 
 type
+   TPlayerID = String[10];
    TPlayer = class
     protected
      FName: UTF8String;
-     FID: Cardinal;
+     FID: TPlayerID;
     public
-     constructor Create(const Name: UTF8String);
-     procedure SetID(const NewID: Cardinal);
+     constructor Create(const Name: UTF8String; const ID: TPlayerID);
      property Name: UTF8String read FName;
-     property ID: Cardinal read FID;
+     property ID: TPlayerID read FID;
    end;
 
 type
-   TPlayerIDHashTable = specialize TCardinalHashTable <TPlayer>; // cardinal -> TPlayer
+   TPlayerIDUtils = specialize DefaultUtils <TPlayerID>;
+
+   TPlayerIDHashTable = class (specialize THashTable <TPlayerID, TPlayer, TPlayerIDUtils>)
+      constructor Create(PredictedCount: THashTableSizeInt = 2);
+   end;
 
    generic TPlayerHashTable <T> = class (specialize THashTable <TPlayer, T, TObjectUtils>) // TPlayer => T
       constructor Create(PredictedCount: THashTableSizeInt = 1);
@@ -30,15 +34,34 @@ function TPlayerHash32(const Key: TPlayer): DWord;
 
 implementation
 
-constructor TPlayer.Create(const Name: UTF8String);
+constructor TPlayer.Create(const Name: UTF8String; const ID: TPlayerID);
 begin
    FName := Name;
+   FID := ID;
 end;
 
-procedure TPlayer.SetID(const NewID: Cardinal);
+
+function TPlayerIDHash32(const Key: TPlayerID): DWord;
+var
+   Index: Cardinal;
 begin
-   FID := NewID;
+   {$PUSH}
+   {$RANGECHECKS OFF}
+   {$OVERFLOWCHECKS OFF}
+   {$HINTS OFF}
+   // djb2 from http://www.cse.yorku.ca/~oz/hash.html:
+   Result := 5381;
+   if (Length(Key) > 0) then
+      for Index := 1 to Length(Key) do
+         Result := Result shl 5 + Result + Ord(Key[Index]);
+   {$POP}
 end;
+
+constructor TPlayerIDHashTable.Create(PredictedCount: THashTableSizeInt = 2);
+begin
+   inherited Create(@TPlayerIDHash32, PredictedCount);
+end;
+
 
 function TPlayerHash32(const Key: TPlayer): DWord;
 begin

@@ -1,1 +1,1 @@
-{ "Players": [ { "Name": "Fred" }, { "Name": "Bob" } ] }
+{ "Players": [ { "Name": "Fred", "ID": "fred" }, { "Name": "Bob", "ID": "bob" } ] }
