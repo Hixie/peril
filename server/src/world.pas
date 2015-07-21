@@ -123,7 +123,7 @@ var
    Owner: TPlayer;
    ProvinceIndex, NeighbourIndex: Cardinal;
    ID, Troops: Cardinal;
-   OwnerID, PlayerID: UTF8String;
+   OwnerID, PlayerID, PlayerName: UTF8String;
 begin
    ParsedData := ParseJSON(ReadTextFile(FileName));
    try
@@ -141,7 +141,11 @@ begin
                   raise Exception.Create('syntax error: invalid player ID');
                if (FPlayers.Has(PlayerID)) then
                   raise Exception.Create('syntax error: duplicate player ID');
-               FPlayers[PlayerID] := TPlayer.Create(PlayerData['Name'], PlayerID);
+               if (Assigned(PlayerData['Name'])) then
+                  PlayerName := PlayerData['Name']
+               else
+                  PlayerName := '';
+               FPlayers[PlayerID] := TPlayer.Create(PlayerName, PlayerID);
             end;
          end;
       end;
